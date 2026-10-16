@@ -1,7 +1,8 @@
 {
   "name": "@1337exp/taofx",
   "version": "0.1.0",
-  "description": "Эффекты из визуального редактора в ваших играх: three.js (TSL и GLSL) и PIXI, рантайм без редактора.",
+  "description": "Node-based visual effects editor and runtime. One graph compiles to three.js (TSL and GLSL) and PIXI",
+  "keywords": ["vfx", "visual-effects", "particles", "shaders", "threejs", "pixijs", "webgpu", "tsl", "glsl", "node-editor"],
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
