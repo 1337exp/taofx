@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { downloadText, MAX_FILE_BYTES } from '@1337exp/taoux/file';
-import { nextTick, ref } from 'vue';
+import { TaoButton, TaoSelect, TaoTooltip } from '@1337exp/taoui';
+import { computed, nextTick, ref } from 'vue';
 import { isLocaleCode, LOCALE_CODES, LOCALE_NAMES, setLocale, useI18n } from '@/i18n';
 import { FILE_NAME } from '../file';
 import { useEditor } from '../store';
@@ -9,6 +10,7 @@ const editor = useEditor();
 const { t, locale } = useI18n();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const languages = computed(() => LOCALE_CODES.map((code) => ({ value: code, label: LOCALE_NAMES[code] })));
 
 async function onFile(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -26,32 +28,29 @@ async function startParticles() {
     if (editor.takeFitRequest()) editor.fitView();
 }
 
-function onLocaleChange(e: Event) {
-    const value = (e.target as HTMLSelectElement).value;
+function onLocale(value: string | number | null) {
     if (isLocaleCode(value)) setLocale(value);
 }
 </script>
 
 <template>
     <div class="toolbar">
-        <button class="text" @click="editor.newGraph()">{{ t('file.new') }}</button>
-        <button class="text" @click="fileInput?.click()">{{ t('file.open') }}</button>
-        <button class="text" @click="downloadText(FILE_NAME, editor.exportText())">{{ t('file.save') }}</button>
+        <TaoButton size="small" variant="secondary" @click="editor.newGraph()">{{ t('file.new') }}</TaoButton>
+        <TaoButton size="small" variant="secondary" @click="fileInput?.click()">{{ t('file.open') }}</TaoButton>
+        <TaoButton size="small" variant="secondary" @click="downloadText(FILE_NAME, editor.exportText())">{{ t('file.save') }}</TaoButton>
         <input ref="fileInput" type="file" accept=".json,application/json" hidden @change="onFile" />
 
         <span class="sep" />
 
-        <button class="icon" :disabled="!editor.canUndo" :title="t('history.undo')" @click="editor.undo()">↶</button>
-        <button class="icon" :disabled="!editor.canRedo" :title="t('history.redo')" @click="editor.redo()">↷</button>
+        <TaoTooltip :content="t('history.undo')"><TaoButton size="small" variant="ghost" :disabled="!editor.canUndo" @click="editor.undo()">↶</TaoButton></TaoTooltip>
+        <TaoTooltip :content="t('history.redo')"><TaoButton size="small" variant="ghost" :disabled="!editor.canRedo" @click="editor.redo()">↷</TaoButton></TaoTooltip>
 
         <span class="sep" />
 
-        <button class="text" @click="editor.fitView()">{{ t('view.fit') }}</button>
-        <button class="text" @click="startParticles">{{ t('particles.start') }}</button>
+        <TaoButton size="small" variant="secondary" @click="editor.fitView()">{{ t('view.fit') }}</TaoButton>
+        <TaoButton size="small" variant="primary" @click="startParticles">{{ t('particles.start') }}</TaoButton>
 
-        <select class="lang" :value="locale" :aria-label="t('ui.language')" @change="onLocaleChange">
-            <option v-for="code in LOCALE_CODES" :key="code" :value="code">{{ LOCALE_NAMES[code] }}</option>
-        </select>
+        <TaoSelect class="lang" size="small" :model-value="locale" :options="languages" :clearable="false" @update:model-value="onLocale" />
     </div>
 
     <div v-if="editor.notice" class="notice" :class="editor.notice.kind">
@@ -69,49 +68,27 @@ function onLocaleChange(e: Event) {
     align-items: center;
     gap: 6px;
     padding: 6px 10px;
-    border: 1px solid #2a2d33;
-    border-radius: 6px;
-    background: rgba(24, 26, 30, 0.92);
-    color: #d6d9de;
+    border: 1px solid var(--tao-color-border, #2a2d33);
+    border-radius: 8px;
+    background: var(--tao-color-surface, rgba(24, 26, 30, 0.92));
+    color: var(--tao-color-text, #d6d9de);
     font-size: 12px;
+}
+
+.toolbar :deep(button) {
+    white-space: nowrap;
 }
 
 .sep {
     width: 1px;
     height: 18px;
     margin: 0 4px;
-    background: #2a2d33;
-}
-
-.text,
-.icon {
-    padding: 2px 8px;
-    border: 1px solid #333;
-    border-radius: 4px;
-    background: #2c3850;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-}
-
-.icon {
-    width: 26px;
-    padding: 2px 0;
-}
-
-.icon:disabled {
-    opacity: 0.35;
-    cursor: default;
+    background: var(--tao-color-border, #2a2d33);
 }
 
 .lang {
+    width: 110px;
     margin-left: 6px;
-    padding: 2px 4px;
-    border: 1px solid #333;
-    border-radius: 4px;
-    background: #101214;
-    color: inherit;
-    font: inherit;
 }
 
 .notice {
@@ -121,15 +98,15 @@ function onLocaleChange(e: Event) {
     z-index: 10;
     max-width: 420px;
     padding: 5px 10px;
-    border: 1px solid #2a2d33;
-    border-radius: 6px;
-    background: rgba(24, 26, 30, 0.95);
-    color: #d6d9de;
+    border: 1px solid var(--tao-color-border, #2a2d33);
+    border-radius: 8px;
+    background: var(--tao-color-surface-raised, rgba(24, 26, 30, 0.95));
+    color: var(--tao-color-text, #d6d9de);
     font-size: 12px;
 }
 
 .notice.error {
-    border-color: #7a2e2e;
-    color: #ff9b9b;
+    border-color: var(--tao-color-danger, #7a2e2e);
+    color: var(--tao-color-danger, #ff9b9b);
 }
 </style>

@@ -1,3 +1,4 @@
+import { localeEn, localeRu, setTaoLocale } from '@1337exp/taoui';
 import { createI18n, type MessageArgs, type Paths } from '@1337exp/taoux/i18n';
 import { FALLBACK_LOCALE, LOCALES, type LocaleCode } from './locales';
 import type ru from './locales/ru';
@@ -14,7 +15,25 @@ const i18n = createI18n<typeof LOCALES, MessageKey>({
     storageKey: 'taofx.locale',
 });
 
-export const { applyLocale, setLocale, initLocale, translate, detectLocale } = i18n;
+export const { translate, detectLocale } = i18n;
+
+// Тексты самих компонентов TaoUI (подписи в календаре, «Очистить» и т.п.) переключаются вместе с нашим языком
+const taoLocales = { ru: localeRu, en: localeEn } as const;
+const syncTao = (code: LocaleCode) => setTaoLocale(taoLocales[code]);
+
+export const applyLocale = (code: LocaleCode): void => {
+    i18n.applyLocale(code);
+    syncTao(code);
+};
+export const setLocale = (code: LocaleCode): void => {
+    i18n.setLocale(code);
+    syncTao(code);
+};
+export const initLocale = (): LocaleCode => {
+    const code = i18n.initLocale();
+    syncTao(code);
+    return code;
+};
 
 /** Минимум, что нужно знать о ноде, чтобы её назвать. */
 interface Titled {

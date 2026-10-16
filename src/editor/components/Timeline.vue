@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { TaoButton } from '@1337exp/taoui';
 import { computed } from 'vue';
 import { useI18n } from '@/i18n';
 import { useEditor } from '../store';
@@ -19,10 +20,10 @@ function onScrub(e: Event) {
 
 <template>
     <div v-if="editor.system" class="timeline">
-        <button class="play" :title="editor.playback.playing ? t('timeline.pause') : t('timeline.play')" @click="editor.playback.playing = !editor.playback.playing">
+        <TaoButton size="small" variant="secondary" :aria-label="editor.playback.playing ? t('timeline.pause') : t('timeline.play')" @click="editor.playback.playing = !editor.playback.playing">
             {{ editor.playback.playing ? '❚❚' : '▶' }}
-        </button>
-        <button class="play" :title="t('timeline.restart')" @click="editor.playback.time = 0">⏮</button>
+        </TaoButton>
+        <TaoButton size="small" variant="ghost" :aria-label="t('timeline.restart')" @click="editor.playback.time = 0">⏮</TaoButton>
         <div class="track">
             <span v-for="(m, i) in marks" :key="i" class="mark" :class="m.kind" :style="{ left: `${(m.time / length) * 100}%` }" />
             <input type="range" min="0" :max="length" step="0.01" :value="editor.playback.time" :aria-label="t('timeline.scrub')" @input="onScrub" />
@@ -37,19 +38,10 @@ function onScrub(e: Event) {
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
-    border-top: 1px solid #222733;
-    background: #0f121a;
+    border-top: 1px solid var(--tao-color-border, #222733);
+    background: var(--tao-color-surface, #0f121a);
+    color: var(--tao-color-text, #d6d9e0);
     font-size: 12px;
-}
-
-.play {
-    width: 26px;
-    padding: 2px 0;
-    border: 1px solid #2c3347;
-    border-radius: 4px;
-    background: #1b2030;
-    color: inherit;
-    cursor: pointer;
 }
 
 .track {

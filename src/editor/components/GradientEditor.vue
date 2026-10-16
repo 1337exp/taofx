@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { TaoButton } from '@1337exp/taoui';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
@@ -89,7 +90,7 @@ function onAlpha(e: Event) {
             <label>{{ t('particles.stopAlpha') }}
                 <input type="range" min="0" max="1" step="0.01" :value="stop.alpha" @input="onAlpha" @change="emit('commit')" />
             </label>
-            <button :disabled="modelValue.length <= 1" :title="t('particles.removeStop')" @click="emit('update:modelValue', removeStop(modelValue, selected)); selected = 0; emit('commit')">✕</button>
+            <TaoButton size="small" variant="ghost" :disabled="modelValue.length <= 1" :aria-label="t('particles.removeStop')" @click="emit('update:modelValue', removeStop(modelValue, selected)); selected = 0; emit('commit')">✕</TaoButton>
         </div>
     </div>
 </template>
@@ -149,19 +150,5 @@ function onAlpha(e: Event) {
     border: 1px solid #333;
     border-radius: 3px;
     background: none;
-}
-
-.fields button {
-    padding: 1px 6px;
-    border: 1px solid #333;
-    border-radius: 4px;
-    background: #1b2030;
-    color: inherit;
-    cursor: pointer;
-}
-
-.fields button:disabled {
-    opacity: 0.35;
-    cursor: default;
 }
 </style>

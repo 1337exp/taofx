@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { TaoInput } from '@1337exp/taoui';
 import { categoryOf, filterNodes, groupByCategory } from '@1337exp/taoux/palette';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
@@ -12,7 +13,8 @@ const HEIGHT = 340;
 
 const query = ref('');
 const active = ref(0);
-const input = ref<HTMLInputElement | null>(null);
+const searchBox = ref<HTMLElement | null>(null);
+const focusSearch = () => searchBox.value?.querySelector('input')?.focus();
 const listEl = ref<HTMLElement | null>(null);
 
 const flat = computed(() =>
@@ -37,7 +39,7 @@ watch(
         query.value = '';
         active.value = 0;
         await nextTick();
-        input.value?.focus();
+        focusSearch();
     },
 );
 watch(query, () => (active.value = 0));
@@ -67,7 +69,7 @@ function onKeyDown(e: KeyboardEvent) {
     e.preventDefault();
 }
 
-onMounted(() => input.value?.focus());
+onMounted(focusSearch);
 </script>
 
 <template>
@@ -75,7 +77,7 @@ onMounted(() => input.value?.focus());
         <div class="head">
             {{ editor.palette.origin ? t('palette.compatible') : t('palette.add') }}
         </div>
-        <input ref="input" v-model="query" class="search" :placeholder="t('palette.search')" spellcheck="false" />
+        <div ref="searchBox" class="search"><TaoInput v-model="query" size="small" :placeholder="t('palette.search')" /></div>
 
         <div ref="listEl" class="list">
             <div v-if="!flat.length" class="empty">{{ t('palette.empty') }}</div>
@@ -103,9 +105,9 @@ onMounted(() => input.value?.focus());
     z-index: 20;
     display: flex;
     flex-direction: column;
-    border: 1px solid #3a3f47;
-    border-radius: 6px;
-    background: rgba(24, 26, 30, 0.98);
+    border: 1px solid var(--tao-color-border-strong, #3a3f47);
+    border-radius: 8px;
+    background: var(--tao-color-surface-raised, rgba(24, 26, 30, 0.98));
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
     color: #d6d9de;
     font-size: 12px;
@@ -118,17 +120,6 @@ onMounted(() => input.value?.focus());
 
 .search {
     margin: 4px 8px 6px;
-    padding: 5px 8px;
-    border: 1px solid #333;
-    border-radius: 4px;
-    background: #101214;
-    color: inherit;
-    font: inherit;
-    outline: none;
-}
-
-.search:focus {
-    border-color: #4fc3f7;
 }
 
 .list {

@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { TaoButton, TaoSegmented, TaoSegmentedOption } from '@1337exp/taoui';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import { createPreview, type Preview, type Shape } from '@/preview/preview';
@@ -92,11 +93,13 @@ onBeforeUnmount(() => {
             <div class="hud">
                 <span class="muted">{{ backend }}</span>
                 <template v-if="!editor.system">
-                    <button :class="{ on: shape === 'sphere' }" @click="shape = 'sphere'">{{ t('preview.sphere') }}</button>
-                    <button :class="{ on: shape === 'plane' }" @click="shape = 'plane'">{{ t('preview.plane') }}</button>
-                    <button @click="editor.enableParticles()">{{ t('particles.enable') }}</button>
+                    <TaoSegmented v-model="shape" size="small">
+                        <TaoSegmentedOption value="sphere" :label="t('preview.sphere')" />
+                        <TaoSegmentedOption value="plane" :label="t('preview.plane')" />
+                    </TaoSegmented>
+                    <TaoButton size="small" variant="primary" @click="editor.enableParticles()">{{ t('particles.enable') }}</TaoButton>
                 </template>
-                <button v-else :class="{ on: inspectorOpen }" @click="inspectorOpen = !inspectorOpen">{{ t('particles.expand') }}</button>
+                <TaoButton v-else size="small" :variant="inspectorOpen ? 'primary' : 'secondary'" @click="inspectorOpen = !inspectorOpen">{{ t('particles.expand') }}</TaoButton>
             </div>
             <ParticleInspector v-if="inspectorOpen" />
             <ul v-if="editor.compileErrors.length" class="status errors">
@@ -115,8 +118,8 @@ onBeforeUnmount(() => {
     flex-direction: column;
     min-width: 0;
     height: 100%;
-    border-left: 1px solid #222733;
-    background: #0b0d12;
+    border-left: 1px solid var(--tao-color-border, #222733);
+    background: var(--tao-color-bg, #0b0d12);
 }
 
 .stage {
@@ -147,22 +150,6 @@ canvas {
 .muted {
     color: #7b8394;
     font-size: 12px;
-}
-
-button {
-    padding: 4px 10px;
-    border: 1px solid #2c3347;
-    border-radius: 6px;
-    background: #1b2030;
-    color: #d6d9e0;
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-button.on {
-    border-color: #4a62b8;
-    background: #2d3a63;
 }
 
 .status {

@@ -40,8 +40,8 @@ body,
 }
 
 body {
-    background: #0b0d12;
-    color: #d6d9e0;
+    background: var(--tao-color-bg, #0b0d12);
+    color: var(--tao-color-text, #d6d9e0);
     font: 14px/1.4 system-ui, sans-serif;
 }
 

@@ -19,8 +19,8 @@ const host = fxCanvasHost(editor);
 
 <style scoped>
 .canvas {
-    --tx-canvas-bg: #15171b;
-    --tx-canvas-accent: #4fc3f7;
-    --tx-canvas-accent-subtle: rgba(79, 195, 247, 0.12);
+    --tx-canvas-bg: var(--tao-color-bg, #15171b);
+    --tx-canvas-accent: var(--tao-color-accent, #4fc3f7);
+    --tx-canvas-accent-subtle: var(--tao-color-accent-subtle, rgba(79, 195, 247, 0.12));
 }
 </style>
