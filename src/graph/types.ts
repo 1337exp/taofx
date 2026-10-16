@@ -29,7 +29,7 @@ export const OUTPUT_NODE = 'output/surface';
  * Что нода требует от цели вывода: нормаль поверхности (материал на 3D-меше) или исходную картинку
  * (фильтр PIXI). Компилятор не соберёт граф для цели, которая этого не даёт, и скажет, какая нода мешает.
  */
-export type Capability = 'normal' | 'source';
+export type Capability = 'normal' | 'source' | 'particle';
 
 /** Что получает GLSL-эмиттер ноды вместе с выражениями входов. */
 export interface GlslContext {

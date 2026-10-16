@@ -10,6 +10,11 @@ export const tslBuilders: Record<string, TslBuild> = {
     'input/uv': () => ({ uv: uv() }),
     'input/fresnel': ({ power }) => ({ f: normalView.dot(positionViewDirection).saturate().oneMinus().pow(power) }),
 
+    'input/particle': (_, { particle }) => {
+        if (!particle) throw new Error('Particle data is only available in a particle system');
+        return { ...particle };
+    },
+
     'const/float': ({ value }) => ({ value }),
     'const/color': ({ value }) => ({ color: value }),
 

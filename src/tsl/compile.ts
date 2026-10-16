@@ -4,12 +4,20 @@ import type { Registry } from '../graph/registry';
 import { resolveTypes, type GraphError } from '../graph/resolve';
 import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type Graph, type PinRef } from '../graph/types';
 import { tslBuilders } from './builders';
-import type { TslBuild, TslValue } from './types';
+import type { TslBuild, TslParticleInputs, TslValue } from './types';
 
 export { OUTPUT_NODE };
 
 /** Что TSL-цель даёт нодам: нормаль поверхности есть, картинки-источника нет. */
 export const TSL_CAPABILITIES: readonly Capability[] = ['normal'];
+
+/** Система частиц даёт данные частицы, но не нормаль. */
+export const TSL_PARTICLE_CAPABILITIES: readonly Capability[] = ['particle'];
+
+export interface CompileOptions {
+    /** Сборка для системы частиц: данные частицы из инстансных атрибутов. */
+    particle?: TslParticleInputs;
+}
 
 export interface CompiledSurface {
     /** Цвет поверхности (vec3). */
@@ -64,7 +72,7 @@ export function cast(value: TslValue, from: DataType, to: DataType): TslValue {
  * Каждая нода строится один раз, даже если её выход используют несколько потребителей.
  * `builders` позволяет подставить свои реализации нод (по умолчанию встроенные).
  */
-export function compile(graph: Graph, registry: Registry, builders: Record<string, TslBuild> = tslBuilders): CompileResult {
+export function compile(graph: Graph, registry: Registry, builders: Record<string, TslBuild> = tslBuilders, options: CompileOptions = {}): CompileResult {
     const { nodes: types, errors } = resolveTypes(graph, registry);
     const fail = (e: GraphError) => errors.push(e);
 
@@ -73,7 +81,7 @@ export function compile(graph: Graph, registry: Registry, builders: Record<strin
         fail({ kind: 'noOutput', message: `Graph has no "${OUTPUT_NODE}" node` });
         return { surface: null, errors };
     }
-    errors.push(...checkCapabilities(graph, registry, TSL_CAPABILITIES, 'TSL'));
+    errors.push(...checkCapabilities(graph, registry, options.particle ? TSL_PARTICLE_CAPABILITIES : TSL_CAPABILITIES, 'TSL'));
 
     const time = uniform(0);
     const linkTo = (ref: PinRef) => graph.connections.find((c) => c.to.node === ref.node && c.to.pin === ref.pin);
@@ -113,7 +121,7 @@ export function compile(graph: Graph, registry: Registry, builders: Record<strin
         }
 
         try {
-            const result = build(inputsOf(id), { time });
+            const result = build(inputsOf(id), { time, particle: options.particle });
             built.set(id, result);
             return result;
         } catch (e) {

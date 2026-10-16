@@ -36,3 +36,11 @@ export type {
 // GLSL: сборка графа в шейдер и каркасы для целей.
 export { compileGlsl, GLSL_CAPABILITIES, glslCast, glslConstant, glslFloat, glslType, type GlslProgram, type GlslResult, type GlslTarget } from '../glsl/compile';
 export { buildPixiFragment, buildThreeShader, TIME_UNIFORM, type ThreeShaderSource } from '../glsl/targets';
+
+// Частицы: модель, детерминированная симуляция, формат файла.
+export { createBuffers, createSimulation, type Simulation } from '../particles/sim';
+export { defaultSystem, parseParticles, serializeParticles, PARTICLES_FORMAT, PARTICLES_VERSION, type ParticleParseResult } from '../particles/serialize';
+export { loadParticleFile } from '../particles/load';
+export { evalCurve, evalGradient, sampleRange } from '../particles/curve';
+export type { Burst, Curve, CurvePoint, EmitterDef, GradientStop, ParticleBuffers, ParticleDef, ParticleFile, Range, Shape, SystemDef, Vec3 } from '../particles/types';
+export { buildPixiParticleShaders, buildThreeParticleShader, type ParticleShaderSource } from '../glsl/particleTargets';

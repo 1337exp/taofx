@@ -9,3 +9,4 @@ export function createDefaultRegistry(): Registry {
     for (const path of Object.keys(modules).sort()) registry.register(modules[path]!.default);
     return registry;
 }
+

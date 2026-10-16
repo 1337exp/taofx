@@ -27,7 +27,7 @@ interface Zone {
 const IDS = /^@1337exp\/taoux\/ids$/;
 
 const ZONES: Record<string, Zone> = {
-    core: { dirs: ['graph', 'nodes', 'glsl'], external: [IDS], uses: [] },
+    core: { dirs: ['graph', 'nodes', 'glsl', 'particles'], external: [IDS], uses: [] },
     tsl: { dirs: ['tsl'], external: [/^three\/(tsl|webgpu)$/], uses: ['core'] },
     three: { dirs: ['three'], external: [/^three$/], uses: ['core'] },
     pixi: { dirs: ['pixi'], external: [/^pixi\.js$/], uses: ['core'] },

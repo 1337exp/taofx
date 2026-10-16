@@ -3,3 +3,4 @@
  */
 export { createPixiEffect, type PixiEffect, type PixiEffectOptions } from '../pixi/filter';
 export { EffectLoadError } from '../graph/load';
+export { createPixiParticles, type PixiParticleEffect, type PixiParticleOptions } from '../pixi/particles';

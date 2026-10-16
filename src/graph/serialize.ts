@@ -28,20 +28,20 @@ export function serialize(graph: Graph, view?: SavedView, pretty = true): string
 
 type Obj = Record<string, unknown>;
 
-const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
-const isStr = (v: unknown): v is string => typeof v === 'string';
-const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+export const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+export const isStr = (v: unknown): v is string => typeof v === 'string';
+export const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 /** Ключи, которыми можно подменить прототип объекта, если использовать их как id. */
 const FORBIDDEN_IDS = new Set(['__proto__', 'constructor', 'prototype']);
 
-class Invalid extends Error {
+export class Invalid extends Error {
     constructor(readonly error: LoadError) {
         super(error.code);
     }
 }
 
-const bad = (detail: string): never => {
+export const bad = (detail: string): never => {
     throw new Invalid({ code: 'invalidStructure', detail });
 };
 
@@ -88,25 +88,11 @@ function parseView(raw: unknown): SavedView | undefined {
 }
 
 /**
- * Разбирает и проверяет файл. Структурные ошибки и неизвестные типы нод отклоняют файл целиком.
- * Недопустимые связи (несуществующие пины, несовместимые типы, циклы, лишние связи в один вход) не причина
- * терять весь граф: они отбрасываются, а их число возвращается в `droppedConnections`.
+ * Разбирает граф из уже прочитанного JSON (поле `graph` файла). Структурные ошибки и неизвестные ноды бросают `Invalid`,
+ * недопустимые связи отбрасываются и считаются.
  */
-export function parse(text: string, registry: Registry): ParseResult {
-    try {
-        let file: unknown;
-        try {
-            file = JSON.parse(text);
-        } catch {
-            throw new Invalid({ code: 'invalidJson' });
-        }
-
-        if (!isObj(file) || file.format !== FORMAT) throw new Invalid({ code: 'notTaofxFile' });
-        if (!isNum(file.version) || !Number.isInteger(file.version) || file.version < 1) return bad('version');
-        if (file.version > VERSION) throw new Invalid({ code: 'newerVersion', detail: String(file.version) });
-
-        const data = migrate(file, file.version);
-        const rawGraph = data.graph;
+export function readGraph(rawGraph: unknown, registry: Registry): { graph: Graph; dropped: number } {
+        
         if (!isObj(rawGraph) || !isObj(rawGraph.nodes) || !Array.isArray(rawGraph.connections)) return bad('graph');
 
         const graph = createGraph();
@@ -126,8 +112,31 @@ export function parse(text: string, registry: Registry): ParseResult {
             taken.add(key);
             graph.connections.push(c);
         }
+    return { graph, dropped: connections.length - graph.connections.length };
+}
 
-        return { ok: true, graph, view: parseView(data.view), droppedConnections: connections.length - graph.connections.length };
+/**
+ * Разбирает и проверяет файл. Структурные ошибки и неизвестные типы нод отклоняют файл целиком.
+ * Недопустимые связи (несуществующие пины, несовместимые типы, циклы, лишние связи в один вход) не причина
+ * терять весь граф: они отбрасываются, а их число возвращается в `droppedConnections`.
+ */
+export function parse(text: string, registry: Registry): ParseResult {
+    try {
+        let file: unknown;
+        try {
+            file = JSON.parse(text);
+        } catch {
+            throw new Invalid({ code: 'invalidJson' });
+        }
+
+        if (!isObj(file) || file.format !== FORMAT) throw new Invalid({ code: 'notTaofxFile' });
+        if (!isNum(file.version) || !Number.isInteger(file.version) || file.version < 1) return bad('version');
+        if (file.version > VERSION) throw new Invalid({ code: 'newerVersion', detail: String(file.version) });
+
+        const data = migrate(file, file.version);
+        const { graph, dropped } = readGraph(data.graph, registry);
+
+        return { ok: true, graph, view: parseView(data.view), droppedConnections: dropped };
     } catch (e) {
         if (e instanceof Invalid) return { ok: false, error: e.error };
         throw e;

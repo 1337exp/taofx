@@ -7,9 +7,14 @@ import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type
  * Куда собираем GLSL: `three` (ShaderMaterial на 3D-меше, есть нормаль) или `pixi` (фильтр спрайта, есть исходная картинка).
  * Цель определяет, какие ноды допустимы (`NodeDef.needs`) и в какой каркас шейдера встанет результат.
  */
-export type GlslTarget = 'three' | 'pixi';
+export type GlslTarget = 'three' | 'pixi' | 'three-particles' | 'pixi-particles';
 
-export const GLSL_CAPABILITIES: Record<GlslTarget, readonly Capability[]> = { three: ['normal'], pixi: ['source'] };
+export const GLSL_CAPABILITIES: Record<GlslTarget, readonly Capability[]> = {
+    three: ['normal'],
+    pixi: ['source'],
+    'three-particles': ['particle'],
+    'pixi-particles': ['particle'],
+};
 
 export interface GlslProgram {
     target: GlslTarget;

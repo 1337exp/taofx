@@ -9,6 +9,16 @@ export type TslValue = any;
 export interface TslContext {
     /** Время эффекта в секундах: uniform, которым управляет игра (`effect.setTime`), а не часы three.js. Так время можно перематывать. */
     time: TslValue;
+    /** Есть только при сборке системы частиц. */
+    particle?: TslParticleInputs;
+}
+
+/** Данные частицы для ноды «Частица»: узлы, читающие инстансные атрибуты. */
+export interface TslParticleInputs {
+    age: TslValue;
+    random: TslValue;
+    tint: TslValue;
+    alpha: TslValue;
 }
 
 export type TslBuild = (inputs: Record<string, TslValue>, ctx: TslContext) => Record<string, TslValue>;
