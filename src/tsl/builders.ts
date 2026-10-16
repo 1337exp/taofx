@@ -8,6 +8,7 @@ import type { TslBuild } from './types';
 export const tslBuilders: Record<string, TslBuild> = {
     'input/time': (_, { time }) => ({ t: time }),
     'input/uv': () => ({ uv: uv() }),
+    'input/radial': () => ({ r: uv().sub(0.5).length().mul(2) }),
     'input/fresnel': ({ power }) => ({ f: normalView.dot(positionViewDirection).saturate().oneMinus().pow(power) }),
 
     'input/particle': (_, { particle }) => {

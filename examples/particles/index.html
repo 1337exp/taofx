@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>taofx: частицы в трёх бэкендах</title>
+    <style>
+        html, body { margin: 0; background: #0b0d12; color: #d6d9e0; font: 13px/1.45 system-ui, sans-serif; }
+        main { max-width: 1160px; margin: 0 auto; padding: 16px; }
+        h1 { font-size: 16px; margin: 0 0 8px; }
+        .row { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+        figure { margin: 0; }
+        figcaption { margin-top: 4px; color: #8b929c; font-size: 12px; }
+        .view { width: 360px; height: 360px; border: 1px solid #222733; background: #05080d; position: relative; overflow: hidden; }
+        .view canvas { display: block; width: 100%; height: 100%; }
+        pre { margin: 0; padding: 10px 12px; border-radius: 6px; background: #10131a; color: #c8d0e0; white-space: pre-wrap; }
+        label { display: inline-flex; gap: 8px; align-items: center; margin-right: 16px; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Один файл частиц (<code>fountain.json</code>) в трёх бэкендах</h1>
+        <label>Время, с <input id="time" type="range" min="0" max="12" step="0.01" value="1.6" /> <span id="timeValue">1.6</span></label>
+        <label><input id="play" type="checkbox" /> играть</label>
+        <div class="row">
+            <figure><div class="view" id="tsl"></div><figcaption>three · TSL · WebGPURenderer</figcaption></figure>
+            <figure><div class="view" id="glsl"></div><figcaption>three · GLSL · WebGLRenderer</figcaption></figure>
+            <figure><div class="view" id="pixi"></div><figcaption>PIXI · GLSL-меш · WebGL</figcaption></figure>
+        </div>
+        <pre id="report">…</pre>
+    </main>
+    <script type="module" src="./main.ts"></script>
+</body>
+</html>
