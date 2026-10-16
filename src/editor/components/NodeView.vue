@@ -149,6 +149,8 @@ usePinMeasure(el, {
 .outputs .pin-row {
     padding-left: 10px;
     margin-right: -6px;
+    /* строки растянуты на ширину колонки: без этого пин короткой подписи оставался посреди ноды, а связь шла от её края */
+    justify-content: flex-end;
 }
 
 .pin {

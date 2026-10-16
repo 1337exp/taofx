@@ -52,28 +52,33 @@ function onScrub(value: number | string) {
 
 .track :deep(.tao-slider) {
     position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
+    top: 50%;
+    right: 0;
+    left: 0;
     width: 100%;
     margin: 0;
+    transform: translateY(-50%); /* у слайдера своя высота: inset: 0 его не растягивает, а прижимает к верху */
 }
 
+/* Метки нейтральные: яркая серая у всплеска, тусклая и короче у границы цикла */
 .mark {
     position: absolute;
-    top: 2px;
+    top: 50%;
     z-index: 1;
     width: 2px;
-    height: 18px;
+    transform: translateY(-50%);
+    border-radius: 1px;
     pointer-events: none;
 }
 
 .mark.burst {
-    background: var(--tao-color-warning);
+    height: 18px;
+    background: var(--tao-color-text);
 }
 
 .mark.cycle {
-    background: var(--tao-color-info);
+    height: 12px;
+    background: var(--tao-color-text-muted);
 }
 
 .time {

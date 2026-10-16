@@ -62,7 +62,6 @@ function remove() {
 .gradient {
     --tx-gradient-border: var(--tao-color-border);
     --tx-gradient-stop-border: var(--tao-color-text-muted);
-    --tx-gradient-stop-bg: var(--tao-color-surface-sunken);
     --tx-gradient-accent: var(--tao-color-accent);
 }
 

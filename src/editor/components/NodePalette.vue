@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { TaoInput } from '@1337exp/taoui';
 import { categoryOf, filterNodes, groupByCategory } from '@1337exp/taoux/palette';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import { useEditor } from '../store';
 
@@ -44,6 +44,21 @@ watch(
 );
 watch(query, () => (active.value = 0));
 
+// Окно закрывается нажатием в любом месте вне его (панель предпросмотра, инспектор, тулбар), а не только на холсте.
+// Слушатель вешается после открытия: само открытие (правый клик) его не должно закрывать.
+const rootEl = ref<HTMLElement | null>(null);
+function onOutsideDown(e: PointerEvent) {
+    if (rootEl.value && !rootEl.value.contains(e.target as Node)) editor.closePalette();
+}
+watch(
+    () => !!editor.palette,
+    (open) => {
+        if (open) setTimeout(() => document.addEventListener('pointerdown', onOutsideDown, true));
+        else document.removeEventListener('pointerdown', onOutsideDown, true);
+    },
+);
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutsideDown, true));
+
 async function scrollToActive() {
     await nextTick();
     listEl.value?.querySelector('.item.active')?.scrollIntoView({ block: 'nearest' });
@@ -73,7 +88,7 @@ onMounted(focusSearch);
 </script>
 
 <template>
-    <div v-if="editor.palette" class="palette" :style="position" @pointerdown.stop @wheel.stop @contextmenu.prevent.stop @keydown="onKeyDown">
+    <div v-if="editor.palette" ref="rootEl" class="palette" :style="position" @pointerdown.stop @wheel.stop @contextmenu.prevent.stop @keydown="onKeyDown">
         <div class="head">
             {{ editor.palette.origin ? t('palette.compatible') : t('palette.add') }}
         </div>
