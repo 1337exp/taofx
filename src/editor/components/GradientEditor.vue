@@ -1,60 +1,23 @@
 <script lang="ts" setup>
 import { TaoButton, TaoSlider } from '@1337exp/taoui';
+import { TaoxGradientEditor } from '@1337exp/taoux/gradienteditor';
+import '@1337exp/taoux/gradienteditor.css';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
-import { addStop, gradientCss, moveStop, removeStop } from '../curveOps';
+import { removeStop, toLinear, toSrgb } from '../curveOps';
 import { fromHex, toHex } from '../values';
 
+// Полоса с ручками это модуль taoux; здесь вокруг неё выбор цвета, прозрачность и кнопка на TaoUI.
 const props = defineProps<{ modelValue: GradientStop[] }>();
 const emit = defineEmits<{ 'update:modelValue': [value: GradientStop[]]; commit: [] }>();
 const { t } = useI18n();
 
-const bar = ref<HTMLElement | null>(null);
 const selected = ref(0);
 const stop = computed(() => props.modelValue[Math.min(selected.value, props.modelValue.length - 1)]!);
 
 // Цвет в градиенте линейный, а выбор цвета у браузера sRGB: переводим туда и обратно
-const toSrgb = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
-const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 const hex = computed(() => toHex(stop.value.color.map(toSrgb)));
-
-function tAt(e: PointerEvent | MouseEvent): number {
-    const r = bar.value!.getBoundingClientRect();
-    return (e.clientX - r.left) / r.width;
-}
-
-let dragging = -1;
-
-function onStopDown(e: PointerEvent, i: number) {
-    if (e.altKey) {
-        emit('update:modelValue', removeStop(props.modelValue, i));
-        selected.value = 0;
-        emit('commit');
-        return;
-    }
-    selected.value = i;
-    dragging = i;
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
-}
-
-function onMove(e: PointerEvent) {
-    if (dragging >= 0) emit('update:modelValue', moveStop(props.modelValue, dragging, tAt(e)));
-}
-
-function onUp() {
-    if (dragging < 0) return;
-    dragging = -1;
-    emit('commit');
-}
-
-function onBarClick(e: MouseEvent) {
-    if (e.target !== bar.value) return;
-    const r = addStop(props.modelValue, tAt(e));
-    emit('update:modelValue', r.stops);
-    selected.value = r.index;
-    emit('commit');
-}
 
 function patchStop(patch: Partial<GradientStop>) {
     emit('update:modelValue', props.modelValue.map((s, i) => (i === selected.value ? { ...s, ...patch } : s)));
@@ -68,66 +31,45 @@ function onColor(e: Event) {
 function onAlpha(value: number | string) {
     patchStop({ alpha: Math.min(1, Math.max(0, Number(value))) });
 }
+
+function remove() {
+    emit('update:modelValue', removeStop(props.modelValue, selected.value));
+    selected.value = 0;
+    emit('commit');
+}
 </script>
 
 <template>
     <div class="gradient">
-        <div ref="bar" class="bar" :style="{ backgroundImage: gradientCss(modelValue) }" :title="t('particles.gradientHint')" @click="onBarClick">
-            <span
-                v-for="(s, i) in modelValue"
-                :key="i"
-                class="stop"
-                :class="{ on: i === selected }"
-                :style="{ left: `${s.t * 100}%` }"
-                @pointerdown.stop="onStopDown($event, i)"
-                @pointermove="onMove"
-                @pointerup="onUp"
-                @pointercancel="onUp"
-            />
-        </div>
+        <TaoxGradientEditor
+            :model-value="modelValue"
+            v-model:selected="selected"
+            :hint="t('particles.gradientHint')"
+            @update:model-value="(v) => emit('update:modelValue', v)"
+            @commit="emit('commit')"
+        />
         <div class="fields">
             <input type="color" :value="hex" :title="t('particles.stopColor')" @input="onColor" @change="emit('commit')" />
             <label>{{ t('particles.stopAlpha') }}
                 <TaoSlider variant="thin" size="small" :min="0" :max="1" :step="0.01" :model-value="stop.alpha" @update:model-value="onAlpha" @change="emit('commit')" />
             </label>
-            <TaoButton size="small" variant="ghost" :disabled="modelValue.length <= 1" :aria-label="t('particles.removeStop')" @click="emit('update:modelValue', removeStop(modelValue, selected)); selected = 0; emit('commit')">✕</TaoButton>
+            <TaoButton size="small" variant="ghost" :disabled="modelValue.length <= 1" :aria-label="t('particles.removeStop')" @click="remove">✕</TaoButton>
         </div>
     </div>
 </template>
 
 <style scoped>
-.bar {
-    position: relative;
-    height: 22px;
-    border: 1px solid var(--tao-color-border);
-    border-radius: 4px;
-    /* шахматка под полосой показывает прозрачность */
-    background-color: #fff;
-    background-size: 100% 100%, 12px 12px;
-    cursor: crosshair;
-}
-
-.stop {
-    position: absolute;
-    top: 14px;
-    width: 10px;
-    height: 12px;
-    margin-left: -5px;
-    border: 2px solid var(--tao-color-text-muted);
-    border-radius: 2px;
-    background: var(--tao-color-surface-sunken);
-    cursor: grab;
-}
-
-.stop.on {
-    border-color: var(--tao-color-accent);
+.gradient {
+    --tx-gradient-border: var(--tao-color-border);
+    --tx-gradient-stop-border: var(--tao-color-text-muted);
+    --tx-gradient-stop-bg: var(--tao-color-surface-sunken);
+    --tx-gradient-accent: var(--tao-color-accent);
 }
 
 .fields {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 12px;
     font-size: 12px;
 }
 
