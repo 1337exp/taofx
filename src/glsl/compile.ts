@@ -1,7 +1,7 @@
-import { checkCapabilities } from '../graph/capabilities';
 import type { Registry } from '../graph/registry';
-import { resolveTypes, type GraphError } from '../graph/resolve';
-import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type Graph, type GlslContext, type PinRef } from '../graph/types';
+import type { GraphError } from '../graph/resolve';
+import { WIDTH, type Capability, type Constant, type DataType, type Graph, type GlslContext } from '../graph/types';
+import { walkGraph, type WalkBackend } from '../graph/walk';
 
 /**
  * Куда собираем GLSL: `three` (ShaderMaterial на 3D-меше, есть нормаль) или `pixi` (фильтр спрайта, есть исходная картинка).
@@ -81,64 +81,26 @@ export function glslCast(expr: string, from: DataType, to: DataType): string {
 }
 
 /**
- * Собирает граф в GLSL. Идём от ноды-выхода к источникам: что не ведёт к выходу, не попадает в шейдер.
- * Значение каждой ноды считается один раз и кладётся в переменную, поэтому выражения не раздуваются, если выход
- * используют несколько потребителей.
+ * Собирает граф в GLSL. Порядок обхода и ошибки ведёт общий `walkGraph`; здесь только то, что относится к GLSL:
+ * значение ноды это выражение, каждый выход кладётся в переменную (потребителей может быть несколько, и выражения не раздуваются).
  */
 export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget): GlslResult {
-    const { nodes: types, errors } = resolveTypes(graph, registry);
-    const fail = (e: GraphError) => errors.push(e);
-
-    const outId = Object.keys(graph.nodes).find((id) => graph.nodes[id]!.type === OUTPUT_NODE);
-    if (!outId) {
-        fail({ kind: 'noOutput', message: `Graph has no "${OUTPUT_NODE}" node` });
-        return { program: null, errors };
-    }
-    errors.push(...checkCapabilities(graph, registry, GLSL_CAPABILITIES[target], `the ${target} target`));
-    if (!types[outId] || errors.length > 0) return { program: null, errors };
-
     const helpers = new Map<string, string>();
     const samplers: GlslSampler[] = [];
     const statements: string[] = [];
-    const linkTo = (ref: PinRef) => graph.connections.find((c) => c.to.node === ref.node && c.to.pin === ref.pin);
-    const built = new Map<string, Record<string, string>>();
-    const failedNodes = new Set<string>(); // упавшую ноду строим один раз: её выходов может быть несколько, а ошибка одна
     let counter = 0;
 
-    function inputsOf(id: string): Record<string, string> {
-        const node = graph.nodes[id]!;
-        const def = registry.get(node.type)!;
-        const rt = types[id]!;
-        const values: Record<string, string> = {};
-
-        for (const [name, pin] of Object.entries(def.inputs)) {
-            const to = rt.inputs[name]!;
-            const link = linkTo({ node: id, pin: name });
-            const expr = link ? outputsOf(link.from.node)?.[link.from.pin] : undefined;
-            const from = link && types[link.from.node]?.outputs[link.from.pin];
-            if (expr !== undefined && from) values[name] = glslCast(expr, from, to);
-            else if (!link && pin.fallback === 'uv') values[name] = 'vUv';
-            else values[name] = glslConstant(to, node.values[name] ?? pin.default);
-        }
-        return values;
-    }
-
-    function outputsOf(id: string): Record<string, string> | null {
-        const cached = built.get(id);
-        if (cached) return cached;
-        if (failedNodes.has(id)) return null;
-        const node = graph.nodes[id];
-        const def = node && registry.get(node.type);
-        if (!def || !types[id]) return null; // ошибка уже записана при выводе типов
-        if (!def.glsl) {
-            fail({ kind: 'unsupported', message: `Node "${def.id}" has no GLSL implementation`, nodeId: id });
-            return null;
-        }
-
-        try {
+    const backend: WalkBackend<string> = {
+        capabilities: GLSL_CAPABILITIES[target],
+        targetName: `the ${target} target`,
+        constant: glslConstant,
+        uv: () => 'vUv',
+        cast: glslCast,
+        unsupported: (def) => (def.glsl ? null : `Node "${def.id}" has no GLSL implementation`),
+        build(node, def, inputs, types) {
             const ctx: GlslContext = {
-                types: types[id]!.inputs,
-                params: graph.nodes[id]!.params ?? {},
+                types: types.inputs,
+                params: node.params ?? {},
                 helper: (name, code) => void (helpers.has(name) || helpers.set(name, code)),
                 texture(name, uv) {
                     if (!graph.textures?.[name]) throw new Error(`Texture "${name}" is not in the graph`);
@@ -152,36 +114,25 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
                     return `texture(${sampler.uniform}, ${uv})`;
                 },
             };
-            const emitted = def.glsl(inputsOf(id), ctx);
+            const emitted = def.glsl!(inputs, ctx);
 
             // значение каждого выхода кладём в переменную: потребителей может быть несколько
             const vars: Record<string, string> = {};
             for (const [pin, expr] of Object.entries(emitted)) {
-                const type = types[id]!.outputs[pin];
+                const type = types.outputs[pin];
                 if (!type) continue;
                 const name = `n${counter++}_${pin.replace(/\W/g, '_')}`;
                 statements.push(`${glslType(type)} ${name} = ${expr};`);
                 vars[pin] = name;
             }
-            built.set(id, vars);
             return vars;
-        } catch (e) {
-            failedNodes.add(id);
-            fail({ kind: 'build', message: e instanceof Error ? e.message : String(e), nodeId: id });
-            return null;
-        }
-    }
+        },
+    };
 
-    let inputs: Record<string, string>;
-    try {
-        inputs = inputsOf(outId);
-    } catch (e) {
-        fail({ kind: 'build', message: e instanceof Error ? e.message : String(e), nodeId: outId });
-        return { program: null, errors };
-    }
-    if (errors.length > 0) return { program: null, errors };
+    const { outputInputs, errors } = walkGraph(graph, registry, backend);
+    if (!outputInputs) return { program: null, errors };
 
-    statements.push(`vec3 fxColor = ${inputs.color};`, `float fxOpacity = ${inputs.opacity};`);
+    statements.push(`vec3 fxColor = ${outputInputs.color};`, `float fxOpacity = ${outputInputs.opacity};`);
     const uniforms = samplers.map((x) => `uniform sampler2D ${x.uniform};`).join('\n');
     return { program: { target, uniforms, samplers, helpers: [...helpers.values()].join('\n'), body: statements.join('\n    ') }, errors };
 }

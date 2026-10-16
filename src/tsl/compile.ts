@@ -1,8 +1,8 @@
 import { color, float, uniform, uv, vec2, vec3, vec4 } from 'three/tsl';
-import { checkCapabilities } from '../graph/capabilities';
 import type { Registry } from '../graph/registry';
-import { resolveTypes, type GraphError } from '../graph/resolve';
-import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type Graph, type PinRef } from '../graph/types';
+import type { GraphError } from '../graph/resolve';
+import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type Graph } from '../graph/types';
+import { walkGraph, type WalkBackend } from '../graph/walk';
 import { tslBuilders } from './builders';
 import { graphTextures, type TextureLookup } from './textures';
 import type { TslBuild, TslParticleInputs, TslValue } from './types';
@@ -71,92 +71,34 @@ export function cast(value: TslValue, from: DataType, to: DataType): TslValue {
 }
 
 /**
- * Собирает граф в значения TSL. Идём от ноды-выхода к источникам: что не ведёт к выходу, не строится.
- * Каждая нода строится один раз, даже если её выход используют несколько потребителей.
- * `builders` позволяет подставить свои реализации нод (по умолчанию встроенные).
+ * Собирает граф в значения TSL. Порядок обхода и ошибки ведёт общий `walkGraph`; здесь только то, что относится к TSL:
+ * значение ноды это узел TSL, реализации нод берутся из `builders` (по умолчанию встроенные).
  */
 export function compile(graph: Graph, registry: Registry, builders: Record<string, TslBuild> = tslBuilders, options: CompileOptions = {}): CompileResult {
-    const { nodes: types, errors } = resolveTypes(graph, registry);
-    const fail = (e: GraphError) => errors.push(e);
-
-    const outId = Object.keys(graph.nodes).find((id) => graph.nodes[id]!.type === OUTPUT_NODE);
-    if (!outId) {
-        fail({ kind: 'noOutput', message: `Graph has no "${OUTPUT_NODE}" node` });
-        return { surface: null, errors };
-    }
-    errors.push(...checkCapabilities(graph, registry, options.particle ? TSL_PARTICLE_CAPABILITIES : TSL_CAPABILITIES, 'TSL'));
-
     const time = uniform(0);
     const lookup = options.textures ?? graphTextures(graph);
-    const linkTo = (ref: PinRef) => graph.connections.find((c) => c.to.node === ref.node && c.to.pin === ref.pin);
-    const built = new Map<string, Record<string, TslValue>>();
-    const failedNodes = new Set<string>(); // упавшую ноду строим один раз: её выходов может быть несколько, а ошибка одна
 
-    function inputsOf(id: string): Record<string, TslValue> {
-        const node = graph.nodes[id]!;
-        const def = registry.get(node.type)!;
-        const rt = types[id]!;
-        const values: Record<string, TslValue> = {};
-
-        for (const [name, pin] of Object.entries(def.inputs)) {
-            const to = rt.inputs[name]!;
-            const link = linkTo({ node: id, pin: name });
-            if (!link && pin.fallback === 'uv') {
-                values[name] = uv();
-            } else if (link) {
-                const out = outputsOf(link.from.node)?.[link.from.pin];
-                const from = types[link.from.node]?.outputs[link.from.pin];
-                values[name] = out !== undefined && from ? cast(out, from, to) : constant(to, pin.default);
-            } else {
-                values[name] = constant(to, node.values[name] ?? pin.default);
-            }
-        }
-        return values;
-    }
-
-    function outputsOf(id: string): Record<string, TslValue> | null {
-        const cached = built.get(id);
-        if (cached) return cached;
-        if (failedNodes.has(id)) return null;
-        const node = graph.nodes[id];
-        const def = node && registry.get(node.type);
-        if (!def || !types[id]) return null; // ошибка уже записана при выводе типов
-
-        const build = builders[def.id];
-        if (!build) {
-            fail({ kind: 'unsupported', message: `Node "${def.id}" has no TSL implementation`, nodeId: id });
-            return null;
-        }
-
-        try {
-            const result = build(inputsOf(id), {
+    const backend: WalkBackend<TslValue> = {
+        capabilities: options.particle ? TSL_PARTICLE_CAPABILITIES : TSL_CAPABILITIES,
+        targetName: 'TSL',
+        constant,
+        uv: () => uv(),
+        cast,
+        unsupported: (def) => (builders[def.id] ? null : `Node "${def.id}" has no TSL implementation`),
+        build: (node, def, inputs) =>
+            builders[def.id]!(inputs, {
                 time,
                 particle: options.particle,
-                params: node?.params ?? {},
+                params: node.params ?? {},
                 texture(name) {
                     const t = lookup(name);
                     if (!t) throw new Error(`Texture "${name}" is not in the graph`);
                     return t;
                 },
-            });
-            built.set(id, result);
-            return result;
-        } catch (e) {
-            failedNodes.add(id);
-            fail({ kind: 'build', message: e instanceof Error ? e.message : String(e), nodeId: id });
-            return null;
-        }
-    }
+            }),
+    };
 
-    if (!types[outId] || errors.length > 0) return { surface: null, errors };
-    let inputs: Record<string, TslValue>;
-    try {
-        inputs = inputsOf(outId);
-    } catch (e) {
-        fail({ kind: 'build', message: e instanceof Error ? e.message : String(e), nodeId: outId });
-        return { surface: null, errors };
-    }
-
-    if (errors.length > 0) return { surface: null, errors };
-    return { surface: { color: inputs.color, opacity: inputs.opacity, time }, errors };
+    const { outputInputs, errors } = walkGraph(graph, registry, backend);
+    if (!outputInputs) return { surface: null, errors };
+    return { surface: { color: outputInputs.color, opacity: outputInputs.opacity, time }, errors };
 }
