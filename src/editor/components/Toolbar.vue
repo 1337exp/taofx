@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { downloadText, MAX_FILE_BYTES } from '@1337exp/taoux/file';
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { isLocaleCode, LOCALE_CODES, LOCALE_NAMES, setLocale, useI18n } from '@/i18n';
 import { FILE_NAME } from '../file';
 import { useEditor } from '../store';
@@ -18,6 +18,12 @@ async function onFile(e: Event) {
 
     if (file.size > MAX_FILE_BYTES) editor.showNotice('error', 'file.error.tooLarge');
     else editor.importText(await file.text());
+}
+
+async function startParticles() {
+    editor.startParticles();
+    await nextTick();
+    if (editor.takeFitRequest()) editor.fitView();
 }
 
 function onLocaleChange(e: Event) {
@@ -41,6 +47,7 @@ function onLocaleChange(e: Event) {
         <span class="sep" />
 
         <button class="text" @click="editor.fitView()">{{ t('view.fit') }}</button>
+        <button class="text" @click="startParticles">{{ t('particles.start') }}</button>
 
         <select class="lang" :value="locale" :aria-label="t('ui.language')" @change="onLocaleChange">
             <option v-for="code in LOCALE_CODES" :key="code" :value="code">{{ LOCALE_NAMES[code] }}</option>

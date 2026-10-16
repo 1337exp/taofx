@@ -1,4 +1,5 @@
-import { bad, Invalid, isNum, isObj, isStr, readGraph, type LoadError } from '../graph/serialize';
+import { bad, Invalid, isNum, isObj, isStr, parseView, readGraph, type LoadError } from '../graph/serialize';
+import type { SavedView } from '../graph/types';
 import type { Registry } from '../graph/registry';
 import type { CurvePoint, GradientStop, ParticleFile, Range, Shape, SystemDef, Vec3 } from './types';
 
@@ -6,7 +7,7 @@ import type { CurvePoint, GradientStop, ParticleFile, Range, Shape, SystemDef, V
 export const PARTICLES_FORMAT = 'taofx-particles';
 export const PARTICLES_VERSION = 1;
 
-export type ParticleParseResult = { ok: true; file: ParticleFile; droppedConnections: number } | { ok: false; error: LoadError };
+export type ParticleParseResult = { ok: true; file: ParticleFile; view?: SavedView; droppedConnections: number } | { ok: false; error: LoadError };
 
 /** Значения по умолчанию: фонтан вверх. Неуказанные поля файла берутся отсюда. */
 export function defaultSystem(): SystemDef {
@@ -31,8 +32,8 @@ export function defaultSystem(): SystemDef {
     };
 }
 
-export function serializeParticles(file: ParticleFile, pretty = true): string {
-    return JSON.stringify({ format: PARTICLES_FORMAT, version: PARTICLES_VERSION, system: file.system, material: file.material }, null, pretty ? 2 : undefined);
+export function serializeParticles(file: ParticleFile, pretty = true, view?: SavedView): string {
+    return JSON.stringify({ format: PARTICLES_FORMAT, version: PARTICLES_VERSION, view, system: file.system, material: file.material }, null, pretty ? 2 : undefined);
 }
 
 //--------------------------------------------------
@@ -156,7 +157,7 @@ export function parseParticles(text: string, registry: Registry): ParticleParseR
 
         const system = parseSystem(file.system);
         const { graph, dropped } = readGraph(file.material, registry);
-        return { ok: true, file: { system, material: graph }, droppedConnections: dropped };
+        return { ok: true, file: { system, material: graph }, view: parseView(file.view), droppedConnections: dropped };
     } catch (e) {
         if (e instanceof Invalid) return { ok: false, error: e.error };
         throw e;

@@ -4,9 +4,12 @@ import { createDocumentSession, type SessionNotice } from '@1337exp/taoux/sessio
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
 import { DEMO_GRAPH } from '@/demo';
-import { addNode, canConnect, connect, createGraph, disconnect, findCompatiblePin, removeNode } from '@/graph/ops';
+import { DEMO_PARTICLES } from '@/demoParticles';
+import { defaultSystem } from '@/particles/serialize';
+import type { SystemDef } from '@/particles/types';
+import { emptyDoc, parseDoc, serializeDoc, type EditorDoc } from './doc';
+import { addNode, canConnect, connect, disconnect, findCompatiblePin, removeNode } from '@/graph/ops';
 import { resolveTypes, type GraphError } from '@/graph/resolve';
-import { parse, serialize } from '@/graph/serialize';
 import type { Connection, Graph, PinRef, PinType } from '@/graph/types';
 import type { MessageKey } from '@/i18n';
 import { createDefaultRegistry } from '@/nodes';
@@ -52,6 +55,10 @@ const cloneDemo = (): Graph => JSON.parse(JSON.stringify(DEMO_GRAPH));
 export const useEditor = defineStore('editor', () => {
     const registry = markRaw(createDefaultRegistry());
     const graph = ref<Graph>(cloneDemo());
+    /** Параметры системы частиц; null: документ это обычный материал. */
+    const system = ref<SystemDef | null>(null);
+    /** Воспроизведение предпросмотра частиц (в историю и файл не входит). */
+    const playback = reactive({ playing: true, time: 0 });
     const camera = ref<Camera>(createCamera());
     const selection = reactive(new Set<string>());
     const selectedConnection = ref<string | null>(null);
@@ -223,19 +230,22 @@ export const useEditor = defineStore('editor', () => {
     //---]>
     // документ: история, автосохранение, файлы (механика в taoux/session)
 
-    const session = createDocumentSession<Graph, MessageKey>({
-        document: { get: () => graph.value, set: (next) => (graph.value = next) },
+    const session = createDocumentSession<EditorDoc, MessageKey>({
+        document: {
+            get: () => ({ graph: graph.value, system: system.value }),
+            set: (next) => {
+                graph.value = next.graph;
+                system.value = next.system;
+            },
+        },
         camera: { get: () => camera.value, set: (next) => (camera.value = next) },
         storage,
         codec: {
-            serialize,
-            parse(text) {
-                const result = parse(text, registry);
-                return result.ok ? { ok: true, doc: result.graph, view: result.view, dropped: result.droppedConnections } : result;
-            },
+            serialize: serializeDoc,
+            parse: (text) => parseDoc(text, registry),
         },
-        empty: createGraph,
-        countNodes: (g) => Object.keys(g.nodes).length,
+        empty: emptyDoc,
+        countNodes: (d) => Object.keys(d.graph.nodes).length,
         keys: {
             loaded: 'file.loaded',
             loadedWithDropped: 'file.loadedWithDropped',
@@ -250,10 +260,10 @@ export const useEditor = defineStore('editor', () => {
             pending.value = null;
             palette.value = null;
         },
-        onRestore(g) {
+        onRestore(d) {
             // Выделение и незавершённые действия не входят в историю, но не должны ссылаться на исчезнувшее.
-            for (const id of [...selection]) if (!g.nodes[id]) selection.delete(id);
-            if (selectedConnection.value && !g.connections.some((c) => c.id === selectedConnection.value)) selectedConnection.value = null;
+            for (const id of [...selection]) if (!d.graph.nodes[id]) selection.delete(id);
+            if (selectedConnection.value && !d.graph.connections.some((c) => c.id === selectedConnection.value)) selectedConnection.value = null;
             pending.value = null;
             palette.value = null;
         },
@@ -262,6 +272,47 @@ export const useEditor = defineStore('editor', () => {
     const { notice, showNotice, canUndo, canRedo, commit, undo, redo, recorded, exportText, importText, restoreSaved, startAutosave, flushSave } = session;
     const loadGraph = session.load;
     const newGraph = session.newDocument;
+
+    //---]>
+    // система частиц
+
+    /** Ключ параметров системы: меняется, когда частицы нужно пересобрать. */
+    const systemKey = computed(() => JSON.stringify(system.value));
+
+    /** Правит параметры системы; серия правок одного `key` склеивается в один шаг истории. */
+    function updateSystem(key: string, change: (s: SystemDef) => void) {
+        if (!system.value) return;
+        change(system.value);
+        commit(`system:${key}`);
+    }
+
+    /** Включает частицы в текущем документе: материал остаётся, добавляются параметры по умолчанию. */
+    function enableParticles() {
+        if (system.value) return;
+        system.value = defaultSystem();
+        playback.time = 0;
+        commit();
+    }
+
+    /** Возвращает документ к обычному материалу. */
+    function disableParticles() {
+        if (!system.value) return;
+        system.value = null;
+        commit();
+    }
+
+    /** Заменяет документ стартовой системой частиц (фонтан); отменяется как обычная правка. */
+    function startParticles() {
+        loadGraph(JSON.parse(JSON.stringify(DEMO_PARTICLES)) as EditorDoc, { x: 0, y: 0, z: 1 });
+        playback.time = 0;
+        nextTickFit = true;
+    }
+    let nextTickFit = false;
+    const takeFitRequest = () => {
+        const v = nextTickFit;
+        nextTickFit = false;
+        return v;
+    };
 
     //---]>
     // палитра нод
@@ -324,6 +375,14 @@ export const useEditor = defineStore('editor', () => {
     return {
         registry,
         graph,
+        system,
+        systemKey,
+        playback,
+        updateSystem,
+        enableParticles,
+        disableParticles,
+        startParticles,
+        takeFitRequest,
         camera,
         selection,
         selectedConnection,

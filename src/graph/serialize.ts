@@ -82,7 +82,7 @@ function parseConnection(index: number, raw: unknown): Connection {
     return { id: raw.id, from: ref(raw.from, `connections[${index}].from`), to: ref(raw.to, `connections[${index}].to`) };
 }
 
-function parseView(raw: unknown): SavedView | undefined {
+export function parseView(raw: unknown): SavedView | undefined {
     if (!isObj(raw) || !isNum(raw.x) || !isNum(raw.y) || !isNum(raw.z) || raw.z <= 0) return undefined;
     return { x: raw.x, y: raw.y, z: raw.z };
 }

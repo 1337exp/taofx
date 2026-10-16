@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
+import { BufferGeometry, Color, type Object3D, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
 import type { CompiledSurface } from '@/tsl/compile';
 import { createSurfaceMaterial } from '@/tsl/material';
 
@@ -9,6 +9,10 @@ export interface Preview {
     readonly backend: string;
     setSurface(surface: CompiledSurface): void;
     setShape(shape: Shape): void;
+    /** Показывает систему частиц вместо сферы (null: назад к сфере). */
+    setParticles(object: Object3D | null): void;
+    /** Вызывается каждый кадр вместо стандартной анимации; получает секунды с запуска предпросмотра. */
+    setFrameHook(hook: ((seconds: number) => void) | null): void;
     dispose(): void;
 }
 
@@ -47,9 +51,17 @@ export async function createPreview(canvas: HTMLCanvasElement): Promise<Preview>
     let time: { value: number } | null = null;
     const start = performance.now();
 
+    let hook: ((seconds: number) => void) | null = null;
+    let particles: Object3D | null = null;
+
     renderer.setAnimationLoop(() => {
-        if (time) time.value = (performance.now() - start) / 1000;
-        mesh.rotation.y += 0.004;
+        const seconds = (performance.now() - start) / 1000;
+        if (hook) {
+            hook(seconds);
+        } else {
+            if (time) time.value = seconds;
+            mesh.rotation.y += 0.004;
+        }
         renderer.render(scene, camera);
     });
 
@@ -61,6 +73,18 @@ export async function createPreview(canvas: HTMLCanvasElement): Promise<Preview>
             mesh.material = next;
             material.dispose();
             material = next;
+        },
+        setParticles(object) {
+            if (particles) scene.remove(particles);
+            particles = object;
+            if (object) scene.add(object);
+            mesh.visible = !object;
+            // фонтан бьёт вверх: камера смотрит чуть выше центра
+            camera.position.set(0, object ? 1.3 : 0, object ? 6 : 4);
+            camera.lookAt(0, object ? 1.3 : 0, 0);
+        },
+        setFrameHook(next) {
+            hook = next;
         },
         setShape(shape) {
             mesh.geometry = geometries[shape];
