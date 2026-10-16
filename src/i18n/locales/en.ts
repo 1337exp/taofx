@@ -30,6 +30,13 @@ const en: typeof ru = {
         fit: 'Fit view',
         nodes: 'Nodes',
     },
+    texture: {
+        label: 'Texture',
+        none: 'not selected',
+        upload: 'Upload…',
+        tooLarge: 'The image is too large for an effect file',
+        notImage: 'This is not an image',
+    },
     palette: {
         add: 'Add node',
         compatible: 'Node for the link',
@@ -104,6 +111,7 @@ const en: typeof ru = {
     },
     nodeTexts: {
         nodes: {
+            'uv/flipbook': { pins: { phase: 'phase' } },
             'math/remap': { pins: { inMin: 'in min', inMax: 'in max', outMin: 'out min', outMax: 'out max' } },
         },
         categories: {},

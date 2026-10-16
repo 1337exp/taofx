@@ -16,8 +16,18 @@ export interface EditorDoc {
 
 export const emptyDoc = (): EditorDoc => ({ graph: createGraph(), system: null });
 
+/** Граф для записи: картинки, на которые не ссылается ни одна нода, в файл не попадают (иначе он тащил бы старые загрузки). */
+export function withUsedTextures(graph: Graph): Graph {
+    if (!graph.textures) return graph;
+    const used = new Set(Object.values(graph.nodes).flatMap((n) => Object.values(n.params ?? {})));
+    const textures = Object.fromEntries(Object.entries(graph.textures).filter(([name]) => used.has(name)));
+    const { textures: _all, ...rest } = graph;
+    return Object.keys(textures).length > 0 ? { ...rest, textures } : rest;
+}
+
 export function serializeDoc(doc: EditorDoc, view: SavedView | undefined, pretty: boolean): string {
-    return doc.system ? serializeParticles({ system: doc.system, material: doc.graph }, pretty, view) : serialize(doc.graph, view, pretty);
+    const graph = withUsedTextures(doc.graph);
+    return doc.system ? serializeParticles({ system: doc.system, material: graph }, pretty, view) : serialize(graph, view, pretty);
 }
 
 export type ParseDocResult = { ok: true; doc: EditorDoc; view?: SavedView; dropped: number } | { ok: false; error: LoadError };

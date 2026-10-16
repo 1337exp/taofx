@@ -1,4 +1,4 @@
-import type { MeshBasicNodeMaterial } from 'three/webgpu';
+import type { MeshBasicNodeMaterial, Texture } from 'three/webgpu';
 import { loadGraph } from '../graph/load';
 import type { Registry } from '../graph/registry';
 import type { GraphError } from '../graph/resolve';
@@ -7,6 +7,7 @@ import { createDefaultRegistry } from '../nodes';
 import { tslBuilders } from './builders';
 import { compile } from './compile';
 import { createSurfaceMaterial, errorSurface } from './material';
+import { graphTextures } from './textures';
 import type { TslBuild } from './types';
 
 export interface EffectOptions {
@@ -14,6 +15,8 @@ export interface EffectOptions {
     registry?: Registry;
     /** TSL-реализации для своих нод (встроенные подмешиваются). */
     builders?: Record<string, TslBuild>;
+    /** Свои текстуры по имени из графа вместо картинок из файла (например, из загрузчика игры). */
+    textures?: Record<string, Texture>;
 }
 
 export interface Effect {
@@ -41,7 +44,7 @@ export function createEffect(source: string | Graph, options: EffectOptions = {}
     const registry = options.registry ?? createDefaultRegistry();
     const graph = loadGraph(source, registry);
 
-    const { surface, errors } = compile(graph, registry, { ...tslBuilders, ...options.builders });
+    const { surface, errors } = compile(graph, registry, { ...tslBuilders, ...options.builders }, { textures: graphTextures(graph, options.textures) });
     const used = surface ?? errorSurface();
     const material = createSurfaceMaterial(used);
 

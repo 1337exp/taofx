@@ -1,3 +1,4 @@
+import { Texture } from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
 import { DEMO_GRAPH } from '@/demo';
 import { createEffect, EffectLoadError } from '@/lib/tsl';
@@ -67,5 +68,34 @@ describe('Pow, Clamp, Remap в TSL', () => {
         const effect = createEffect(file as never);
         expect(effect.errors).toEqual([]);
         expect(effect.material.colorNode?.isNode).toBe(true);
+    });
+});
+
+describe('текстуры в TSL', () => {
+    const file = (textures?: Record<string, { src: string }>) => ({
+        nodes: {
+            t: { id: 't', type: 'input/texture', x: 0, y: 0, values: {}, params: { texture: 'sheet' } },
+            f: { id: 'f', type: 'uv/flipbook', x: 0, y: 0, values: { columns: 4, rows: 2, phase: 0.5 } },
+            out: { id: 'out', type: 'output/surface', x: 0, y: 0, values: {} },
+        },
+        connections: [
+            { id: '1', from: { node: 'f', pin: 'uv' }, to: { node: 't', pin: 'uv' } },
+            { id: '2', from: { node: 't', pin: 'color' }, to: { node: 'out', pin: 'color' } },
+            { id: '3', from: { node: 't', pin: 'alpha' }, to: { node: 'out', pin: 'opacity' } },
+        ],
+        textures,
+    });
+
+    it('своя текстура по имени подставляется вместо картинки из файла', () => {
+        const effect = createEffect(file() as never, { textures: { sheet: new Texture() } });
+        expect(effect.errors).toEqual([]);
+        expect(effect.material.colorNode?.isNode).toBe(true);
+    });
+
+    it('нет ни текстуры в графе, ни своей: ошибка ноды, материал пурпурный', () => {
+        const effect = createEffect(file() as never);
+        expect(effect.errors).toHaveLength(1);
+        expect(effect.errors[0]).toMatchObject({ kind: 'build', nodeId: 't' });
+        expect(effect.errors[0]!.message).toContain('sheet');
     });
 });

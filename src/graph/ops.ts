@@ -20,6 +20,7 @@ export function addNode(
         y: init.y ?? 0,
         values: { ...init.values },
     };
+    if (init.params) node.params = { ...init.params };
     if (graph.nodes[node.id]) throw new Error(`Node "${node.id}" already exists`);
 
     graph.nodes[node.id] = node;

@@ -15,6 +15,11 @@ export interface InputPin {
     type: PinType;
     default?: Constant;
     label?: string;
+    /**
+     * Что подставить, пока вход не подключён, вместо константы: `uv` это координаты текстуры самой поверхности
+     * (меша, квадрата частицы, спрайта). У такого входа в редакторе нет поля значения.
+     */
+    fallback?: 'uv';
 }
 
 export interface OutputPin {
@@ -31,8 +36,21 @@ export const OUTPUT_NODE = 'output/surface';
  */
 export type Capability = 'normal' | 'source' | 'particle';
 
+/** Настройка ноды, которую не выразить пином: сейчас это только выбор текстуры из `Graph.textures`. */
+export interface ParamDef {
+    type: 'texture';
+    label?: string;
+}
+
 /** Что получает GLSL-эмиттер ноды вместе с выражениями входов. */
 export interface GlslContext {
+    /** Параметры ноды (`NodeInstance.params`). */
+    readonly params: Readonly<Record<string, string>>;
+    /**
+     * Выражение vec4 (линейный RGB, прямая альфа) выборки из текстуры `name` по `uv` (vec2, начало внизу слева, как у three).
+     * Регистрирует sampler: рантайм привязывает к нему картинку. Нет такой текстуры в графе: ошибка сборки ноды.
+     */
+    texture(name: string, uv: string): string;
     /** Типы входов после вывода `gen`: нужны, когда формула зависит от размерности. */
     readonly types: Readonly<Record<string, DataType>>;
     /** Подключить функцию GLSL (повторный вызов с тем же именем игнорируется). */
@@ -53,6 +71,8 @@ export interface NodeDef {
     outputs: Record<string, OutputPin>;
     /** Чего ноде нужно от цели вывода. */
     needs?: readonly Capability[];
+    /** Настройки ноды вне пинов (выбор текстуры). */
+    params?: Record<string, ParamDef>;
     /** Реализация для GLSL (three с WebGLRenderer, PIXI на WebGL). */
     glsl?: GlslEmit;
 }
@@ -68,6 +88,8 @@ export interface NodeInstance {
     y: number;
     /** Значения неподключённых входов, заданные пользователем. */
     values: Record<string, Constant>;
+    /** Настройки вне пинов (см. `NodeDef.params`): имя текстуры из `Graph.textures`. */
+    params?: Record<string, string>;
 }
 
 export interface PinRef {
@@ -81,10 +103,20 @@ export interface Connection {
     to: PinRef; // вход
 }
 
+/** Картинка графа: адрес (URL или data:-URI, чтобы файл был самодостаточным). Игра может подменить её своей. */
+export interface GraphTexture {
+    src: string;
+}
+
 export interface Graph {
     nodes: Record<string, NodeInstance>;
     connections: Connection[];
+    /** Картинки, на которые ссылаются ноды по имени. Нет поля: текстур в графе нет. */
+    textures?: Record<string, GraphTexture>;
 }
+
+/** Предел размера одной картинки в файле (символов data:-URI): файл не раздувается и не вешает редактор. */
+export const MAX_TEXTURE_SRC = 4_000_000;
 
 /** Положение камеры редактора в файле: чтобы граф открывался там, где его оставили. */
 export interface SavedView {

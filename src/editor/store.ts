@@ -86,7 +86,9 @@ export const useEditor = defineStore('editor', () => {
      */
     const structureKey = computed(() =>
         JSON.stringify([
-            Object.values(graph.value.nodes).map((n) => [n.id, n.type, n.values]),
+            Object.values(graph.value.nodes).map((n) => [n.id, n.type, n.values, n.params]),
+            // картинки целиком не кладём в ключ: имя, длина и концы адреса достаточно, чтобы заметить замену
+            Object.entries(graph.value.textures ?? {}).map(([name, t]) => [name, t.src.length, t.src.slice(0, 40), t.src.slice(-40)]),
             graph.value.connections.map((c) => [c.from.node, c.from.pin, c.to.node, c.to.pin]),
         ]),
     );
@@ -136,6 +138,21 @@ export const useEditor = defineStore('editor', () => {
     function setValue(nodeId: string, pin: string, value: number | number[]) {
         const node = graph.value.nodes[nodeId];
         if (node) node.values[pin] = value;
+    }
+
+    function setParam(nodeId: string, key: string, value: string) {
+        const node = graph.value.nodes[nodeId];
+        if (node) node.params = { ...node.params, [key]: value };
+    }
+
+    /** Кладёт картинку в граф под свободным именем (по подсказке) и выбирает её в параметре ноды. */
+    function importTexture(nodeId: string, key: string, nameHint: string, src: string) {
+        const textures = (graph.value.textures ??= {});
+        const base = nameHint.replace(/\.[^.]+$/, '').trim() || 'texture';
+        let name = base;
+        for (let i = 2; name in textures; i++) name = `${base} ${i}`;
+        textures[name] = { src };
+        setParam(nodeId, key, name);
     }
 
     /** Мировые координаты центра пина или null, если ещё не измерен. */
@@ -417,6 +434,8 @@ export const useEditor = defineStore('editor', () => {
         removeSelected: recorded(removeSelected),
         isConnected,
         setValue: recorded(setValue, (nodeId, pin) => `value:${nodeId}:${pin}`),
+        setParam: recorded(setParam),
+        importTexture: recorded(importTexture),
         setPinOffsets: pins.set,
         clearPinOffsets: pins.clear,
         pinWorld,

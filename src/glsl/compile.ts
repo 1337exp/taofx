@@ -16,8 +16,18 @@ export const GLSL_CAPABILITIES: Record<GlslTarget, readonly Capability[]> = {
     'pixi-particles': ['particle'],
 };
 
+/** Текстура графа в шейдере: имя uniform и имя картинки в `Graph.textures`. */
+export interface GlslSampler {
+    uniform: string;
+    texture: string;
+}
+
 export interface GlslProgram {
     target: GlslTarget;
+    /** Объявления `uniform sampler2D` для текстур, которые читают ноды. */
+    uniforms: string;
+    /** Текстуры, к которым рантайм привязывает картинки. */
+    samplers: GlslSampler[];
     /** Вспомогательные функции нод (шум и т.п.), каждая один раз. */
     helpers: string;
     /** Операторы: считают значения нод и объявляют `vec3 fxColor` и `float fxOpacity`. */
@@ -28,6 +38,14 @@ export interface GlslResult {
     program: GlslProgram | null;
     errors: GraphError[];
 }
+
+const PIXI_TEXTURE_HELPER = `vec4 fxTex(sampler2D s, vec2 uv) {
+    vec4 c = texture(s, vec2(uv.x, 1.0 - uv.y));
+    vec3 rgb = c.a > 0.0 ? c.rgb / c.a : vec3(0.0);
+    vec3 lo = rgb / 12.92;
+    vec3 hi = pow((rgb + 0.055) / 1.055, vec3(2.4));
+    return vec4(mix(hi, lo, lessThanEqual(rgb, vec3(0.04045))), c.a);
+}`;
 
 /** Тип GLSL: color это vec3. */
 export const glslType = (t: DataType): string => (t === 'float' ? 'float' : t === 'vec2' ? 'vec2' : t === 'vec4' ? 'vec4' : 'vec3');
@@ -80,9 +98,11 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
     if (!types[outId] || errors.length > 0) return { program: null, errors };
 
     const helpers = new Map<string, string>();
+    const samplers: GlslSampler[] = [];
     const statements: string[] = [];
     const linkTo = (ref: PinRef) => graph.connections.find((c) => c.to.node === ref.node && c.to.pin === ref.pin);
     const built = new Map<string, Record<string, string>>();
+    const failedNodes = new Set<string>(); // упавшую ноду строим один раз: её выходов может быть несколько, а ошибка одна
     let counter = 0;
 
     function inputsOf(id: string): Record<string, string> {
@@ -96,7 +116,9 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
             const link = linkTo({ node: id, pin: name });
             const expr = link ? outputsOf(link.from.node)?.[link.from.pin] : undefined;
             const from = link && types[link.from.node]?.outputs[link.from.pin];
-            values[name] = expr !== undefined && from ? glslCast(expr, from, to) : glslConstant(to, node.values[name] ?? pin.default);
+            if (expr !== undefined && from) values[name] = glslCast(expr, from, to);
+            else if (!link && pin.fallback === 'uv') values[name] = 'vUv';
+            else values[name] = glslConstant(to, node.values[name] ?? pin.default);
         }
         return values;
     }
@@ -104,6 +126,7 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
     function outputsOf(id: string): Record<string, string> | null {
         const cached = built.get(id);
         if (cached) return cached;
+        if (failedNodes.has(id)) return null;
         const node = graph.nodes[id];
         const def = node && registry.get(node.type);
         if (!def || !types[id]) return null; // ошибка уже записана при выводе типов
@@ -115,7 +138,19 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
         try {
             const ctx: GlslContext = {
                 types: types[id]!.inputs,
+                params: graph.nodes[id]!.params ?? {},
                 helper: (name, code) => void (helpers.has(name) || helpers.set(name, code)),
+                texture(name, uv) {
+                    if (!graph.textures?.[name]) throw new Error(`Texture "${name}" is not in the graph`);
+                    let sampler = samplers.find((x) => x.texture === name);
+                    if (!sampler) samplers.push((sampler = { uniform: `uTex${samplers.length}`, texture: name }));
+                    if (target === 'pixi' || target === 'pixi-particles') {
+                        // PIXI: картинка с премультипликацией и в sRGB, начало сверху: приводим к прямой альфе, линейному цвету и началу снизу
+                        helpers.has('fxTex') || helpers.set('fxTex', PIXI_TEXTURE_HELPER);
+                        return `fxTex(${sampler.uniform}, ${uv})`;
+                    }
+                    return `texture(${sampler.uniform}, ${uv})`;
+                },
             };
             const emitted = def.glsl(inputsOf(id), ctx);
 
@@ -131,6 +166,7 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
             built.set(id, vars);
             return vars;
         } catch (e) {
+            failedNodes.add(id);
             fail({ kind: 'build', message: e instanceof Error ? e.message : String(e), nodeId: id });
             return null;
         }
@@ -146,5 +182,6 @@ export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget
     if (errors.length > 0) return { program: null, errors };
 
     statements.push(`vec3 fxColor = ${inputs.color};`, `float fxOpacity = ${inputs.opacity};`);
-    return { program: { target, helpers: [...helpers.values()].join('\n'), body: statements.join('\n    ') }, errors };
+    const uniforms = samplers.map((x) => `uniform sampler2D ${x.uniform};`).join('\n');
+    return { program: { target, uniforms, samplers, helpers: [...helpers.values()].join('\n'), body: statements.join('\n    ') }, errors };
 }

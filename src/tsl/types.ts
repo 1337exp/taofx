@@ -1,3 +1,5 @@
+import type { Texture } from 'three/webgpu';
+
 /**
  * Значение в скомпилированном графе TSL. Для ядра оно непрозрачно: его создают и потребляют только
  * TSL-реализации нод и компилятор.
@@ -7,6 +9,10 @@ export type TslValue = any;
 
 /** Что получает TSL-реализация ноды, кроме значений входов. */
 export interface TslContext {
+    /** Параметры ноды (`NodeInstance.params`). */
+    params: Readonly<Record<string, string>>;
+    /** Текстура по имени из графа; нет такой — ошибка сборки ноды. */
+    texture(name: string): Texture;
     /** Время эффекта в секундах: uniform, которым управляет игра (`effect.setTime`), а не часы three.js. Так время можно перематывать. */
     time: TslValue;
     /** Есть только при сборке системы частиц. */

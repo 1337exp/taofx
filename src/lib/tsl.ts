@@ -9,3 +9,4 @@ export { applySurface, createSurfaceMaterial } from '../tsl/material';
 export { tslBuilders } from '../tsl/builders';
 export type { TslBuild, TslContext, TslValue } from '../tsl/types';
 export { createParticles, type ParticleEffect, type ParticleEffectOptions } from '../tsl/particles';
+export { clearTextureCache, loadTexture } from '../tsl/textures';

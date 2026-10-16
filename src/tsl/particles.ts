@@ -1,5 +1,5 @@
 import { attribute, cameraProjectionMatrix, cos, modelViewMatrix, positionGeometry, sin, vec2, vec4 } from 'three/tsl';
-import { AdditiveBlending, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, PlaneGeometry } from 'three/webgpu';
+import { AdditiveBlending, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, PlaneGeometry, type Texture } from 'three/webgpu';
 import type { Registry } from '../graph/registry';
 import type { GraphError } from '../graph/resolve';
 import { createDefaultRegistry } from '../nodes';
@@ -9,11 +9,14 @@ import type { ParticleFile } from '../particles/types';
 import { tslBuilders } from './builders';
 import { compile } from './compile';
 import { createSurfaceMaterial, errorSurface } from './material';
+import { graphTextures } from './textures';
 import type { TslBuild } from './types';
 
 export interface ParticleEffectOptions {
     registry?: Registry;
     builders?: Record<string, TslBuild>;
+    /** Свои текстуры по имени из графа вместо картинок из файла. */
+    textures?: Record<string, Texture>;
 }
 
 export interface ParticleEffect {
@@ -65,7 +68,7 @@ export function createParticles(source: string | ParticleFile, options: Particle
         tint: attribute('aTint', 'vec3'),
         alpha: attribute('aAlpha', 'float'),
     };
-    const { surface, errors } = compile(file.material, registry, { ...tslBuilders, ...options.builders }, { particle });
+    const { surface, errors } = compile(file.material, registry, { ...tslBuilders, ...options.builders }, { particle, textures: graphTextures(file.material, options.textures) });
     const used = surface ?? errorSurface();
     const material = createSurfaceMaterial(used);
 

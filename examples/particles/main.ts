@@ -8,7 +8,9 @@ import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { Color, PerspectiveCamera as GpuCamera, Scene as GpuScene, WebGPURenderer } from 'three/webgpu';
 
 const S = 360;
-const text = await (await fetch('./fountain.json')).text();
+// ?file=sprites открывает пример со спрайт-листом (текстура в файле), по умолчанию фонтан
+const name = new URLSearchParams(location.search).get('file') ?? 'fountain';
+const text = await (await fetch(`./${name}.json`)).text();
 
 const host = (id: string) => document.getElementById(id)!;
 
@@ -58,6 +60,9 @@ function show(t: number): void {
     ].join('\n');
     (host('report').dataset as DOMStringMap).count = String(tsl.object.geometry.instanceCount);
 }
+
+// Картинки текстур догружаются сами: в статичной сцене перерисовываем кадр, когда они пришли (в игре кадры идут постоянно)
+setTimeout(() => show(Number((host('time') as HTMLInputElement).value)), 500);
 
 const slider = host('time') as HTMLInputElement;
 const play = host('play') as HTMLInputElement;

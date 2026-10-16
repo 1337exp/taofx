@@ -1,4 +1,4 @@
-import { defaultFilterVert, Filter, GlProgram } from 'pixi.js';
+import { defaultFilterVert, Filter, GlProgram, type Texture } from 'pixi.js';
 import { compileGlsl } from '../glsl/compile';
 import { buildPixiFragment, TIME_UNIFORM } from '../glsl/targets';
 import { loadGraph } from '../graph/load';
@@ -6,10 +6,13 @@ import type { Registry } from '../graph/registry';
 import type { GraphError } from '../graph/resolve';
 import type { Graph } from '../graph/types';
 import { createDefaultRegistry } from '../nodes';
+import { textureResources } from './textures';
 
 export interface PixiEffectOptions {
     /** Свои типы нод вместо встроенных (у них должны быть GLSL-эмиттеры). */
     registry?: Registry;
+    /** Свои текстуры по имени из графа вместо картинок из файла. */
+    textures?: Record<string, Texture>;
 }
 
 export interface PixiEffect {
@@ -23,7 +26,7 @@ export interface PixiEffect {
     dispose(): void;
 }
 
-const ERROR_PROGRAM = { target: 'pixi' as const, helpers: '', body: 'vec3 fxColor = vec3(1.0, 0.0, 1.0);\n    float fxOpacity = 1.0;' };
+const ERROR_PROGRAM = { target: 'pixi' as const, uniforms: '', samplers: [], helpers: '', body: 'vec3 fxColor = vec3(1.0, 0.0, 1.0);\n    float fxOpacity = 1.0;' };
 
 /**
  * Эффект из файла редактора как фильтр PIXI v8: тот же граф, собранный в GLSL. Эффект рисуется внутри силуэта спрайта
@@ -44,7 +47,7 @@ export function createPixiEffect(source: string | Graph, options: PixiEffectOpti
     const fragment = buildPixiFragment(program ?? ERROR_PROGRAM);
     const filter = new Filter({
         glProgram: new GlProgram({ vertex: defaultFilterVert, fragment, name: 'taofx-effect' }),
-        resources: { fxUniforms: { [TIME_UNIFORM]: { value: 0, type: 'f32' } } },
+        resources: { fxUniforms: { [TIME_UNIFORM]: { value: 0, type: 'f32' } }, ...textureResources(program ?? ERROR_PROGRAM, graph, options.textures) },
     });
 
     return {

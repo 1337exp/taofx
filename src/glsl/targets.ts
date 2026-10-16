@@ -31,6 +31,7 @@ varying vec2 vUv;
 varying vec3 vNormalView;
 varying vec3 vViewDir;
 uniform float ${TIME_UNIFORM};
+${program.uniforms}
 ${program.helpers}
 void main() {
     ${program.body}
@@ -55,6 +56,7 @@ in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture;
 uniform float ${TIME_UNIFORM};
+${program.uniforms}
 ${program.helpers}
 vec3 fxLinearToSrgb(vec3 c) {
     vec3 lo = c * 12.92;

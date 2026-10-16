@@ -1,6 +1,6 @@
 import { canConnect, createGraph } from './ops';
 import type { Registry } from './registry';
-import type { Connection, Constant, Graph, NodeInstance, SavedView } from './types';
+import { MAX_TEXTURE_SRC, type Connection, type Constant, type Graph, type GraphTexture, type NodeInstance, type SavedView } from './types';
 
 /** Имя формата в файле: по нему отличаем наш файл от любого другого JSON. */
 export const FORMAT = 'taofx';
@@ -68,7 +68,30 @@ function parseNode(key: string, raw: unknown): NodeInstance {
         if (FORBIDDEN_IDS.has(name)) return bad(`nodes.${key}.values.${name}`);
         values[name] = parseValue(`nodes.${key}.values.${name}`, value);
     }
-    return { id: raw.id, type: raw.type, x: raw.x, y: raw.y, values };
+    const node: NodeInstance = { id: raw.id, type: raw.type, x: raw.x, y: raw.y, values };
+
+    if (raw.params !== undefined) {
+        if (!isObj(raw.params)) return bad(`nodes.${key}.params`);
+        const params: Record<string, string> = {};
+        for (const [name, value] of Object.entries(raw.params)) {
+            if (FORBIDDEN_IDS.has(name) || !isStr(value)) return bad(`nodes.${key}.params.${name}`);
+            params[name] = value;
+        }
+        if (Object.keys(params).length > 0) node.params = params;
+    }
+    return node;
+}
+
+function parseTextures(raw: unknown): Record<string, GraphTexture> | undefined {
+    if (raw === undefined) return undefined;
+    if (!isObj(raw)) return bad('textures');
+    const textures: Record<string, GraphTexture> = {};
+    for (const [name, value] of Object.entries(raw)) {
+        if (FORBIDDEN_IDS.has(name)) return bad(`textures.${name}`);
+        if (!isObj(value) || !isStr(value.src) || value.src.length === 0 || value.src.length > MAX_TEXTURE_SRC) return bad(`textures.${name}.src`);
+        textures[name] = { src: value.src };
+    }
+    return Object.keys(textures).length > 0 ? textures : undefined;
 }
 
 function parseConnection(index: number, raw: unknown): Connection {
@@ -97,6 +120,8 @@ export function readGraph(rawGraph: unknown, registry: Registry): { graph: Graph
 
         const graph = createGraph();
         for (const [key, raw] of Object.entries(rawGraph.nodes)) graph.nodes[key] = parseNode(key, raw);
+        const textures = parseTextures(rawGraph.textures);
+        if (textures) graph.textures = textures;
         const connections = rawGraph.connections.map((c, i) => parseConnection(i, c));
         if (new Set(connections.map((c) => c.id)).size !== connections.length) bad('connections: duplicate id');
 

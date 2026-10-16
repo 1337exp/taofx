@@ -5,6 +5,7 @@ import type { Constant, NodeInstance } from '@/graph/types';
 import { useI18n } from '@/i18n';
 import { useEditor } from '../store';
 import { TYPE_COLORS } from '../values';
+import TextureParam from './TextureParam.vue';
 import ValueField from './ValueField.vue';
 
 const props = defineProps<{ node: NodeInstance; selected: boolean }>();
@@ -50,13 +51,17 @@ usePinMeasure(el, {
     >
         <header class="title">{{ nodeTitle(def) }}</header>
 
+        <template v-for="(param, key) in def.params" :key="key">
+            <TextureParam v-if="param.type === 'texture'" :node="node" :name="String(key)" />
+        </template>
+
         <div class="body">
             <div class="column inputs">
                 <div v-for="input in inputs" :key="input.name" class="pin-row">
                     <span class="pin" :style="{ '--pin-color': TYPE_COLORS[input.type] }" data-dir="in" :data-pin="input.name" />
                     <span class="pin-label">{{ label(input.name, input.pin.label) }}</span>
                     <ValueField
-                        v-if="!editor.isConnected(node.id, input.name, 'in')"
+                        v-if="!input.pin.fallback && !editor.isConnected(node.id, input.name, 'in')"
                         :type="input.type"
                         :model-value="valueOf(input.name, input.pin.default)"
                         @update:model-value="editor.setValue(node.id, input.name, $event)"
@@ -95,6 +100,7 @@ usePinMeasure(el, {
 .node.cat-input { --head-a: #2f5d7c; --head-b: #244860; }
 .node.cat-const { --head-a: #2f6b62; --head-b: #24534c; }
 .node.cat-math { --head-a: #4a4f5a; --head-b: #393d46; }
+.node.cat-uv { --head-a: #7a5aa0; --head-b: #5f4580; }
 .node.cat-noise { --head-a: #6a4a86; --head-b: #523a68; }
 .node.cat-output { --head-a: #7a5a2c; --head-b: #604622; }
 

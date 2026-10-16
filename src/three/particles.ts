@@ -1,4 +1,4 @@
-import { AdditiveBlending, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, PlaneGeometry, ShaderMaterial } from 'three';
+import { AdditiveBlending, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, PlaneGeometry, ShaderMaterial, type Texture } from 'three';
 import { compileGlsl } from '../glsl/compile';
 import { buildThreeParticleShader } from '../glsl/particleTargets';
 import { TIME_UNIFORM } from '../glsl/targets';
@@ -8,9 +8,12 @@ import { createDefaultRegistry } from '../nodes';
 import { loadParticleFile } from '../particles/load';
 import { createBuffers, createSimulation } from '../particles/sim';
 import type { ParticleFile } from '../particles/types';
+import { textureUniforms } from './textures';
 
 export interface GlslParticleOptions {
     registry?: Registry;
+    /** Свои текстуры по имени из графа вместо картинок из файла. */
+    textures?: Record<string, Texture>;
 }
 
 export interface GlslParticleEffect {
@@ -21,7 +24,7 @@ export interface GlslParticleEffect {
     dispose(): void;
 }
 
-const ERROR_PROGRAM = { target: 'three-particles' as const, helpers: '', body: 'vec3 fxColor = vec3(1.0, 0.0, 1.0);\n    float fxOpacity = 1.0;' };
+const ERROR_PROGRAM = { target: 'three-particles' as const, uniforms: '', samplers: [], helpers: '', body: 'vec3 fxColor = vec3(1.0, 0.0, 1.0);\n    float fxOpacity = 1.0;' };
 
 /** Система частиц для three.js с классическим `WebGLRenderer`: тот же файл, вид из графа собран в GLSL. */
 export function createGlslParticles(source: string | ParticleFile, options: GlslParticleOptions = {}): GlslParticleEffect {
@@ -55,7 +58,7 @@ export function createGlslParticles(source: string | ParticleFile, options: Glsl
 
     const { program, errors } = compileGlsl(file.material, registry, 'three-particles');
     const { vertexShader, fragmentShader } = buildThreeParticleShader(program ?? ERROR_PROGRAM);
-    const uniforms = { [TIME_UNIFORM]: { value: 0 } };
+    const uniforms = { [TIME_UNIFORM]: { value: 0 }, ...textureUniforms(program ?? ERROR_PROGRAM, file.material, options.textures) };
     const material = new ShaderMaterial({ vertexShader, fragmentShader, uniforms, transparent: true, depthWrite: false });
     if (system.blend === 'add') material.blending = AdditiveBlending;
 

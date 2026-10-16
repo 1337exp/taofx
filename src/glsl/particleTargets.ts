@@ -45,6 +45,7 @@ varying float vRand;
 varying vec3 vTint;
 varying float vAlpha;
 uniform float ${TIME_UNIFORM};
+${program.uniforms}
 ${program.helpers}
 void main() {
     ${program.body}
@@ -95,6 +96,7 @@ in vec3 vTint;
 in float vAlpha;
 out vec4 finalColor;
 uniform float ${TIME_UNIFORM};
+${program.uniforms}
 ${program.helpers}
 vec3 fxLinearToSrgb(vec3 c) {
     vec3 lo = c * 12.92;

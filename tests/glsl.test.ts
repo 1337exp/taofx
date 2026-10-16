@@ -192,3 +192,77 @@ describe('Pow, Clamp, Remap', () => {
         expect(remap.program!.body).toContain('abs(10.0 - 0.0) < 1e-6');
     });
 });
+
+describe('текстуры и спрайты', () => {
+    const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+    const textured = (extra: Partial<Graph> = {}): Graph => ({
+        nodes: {
+            t: { ...node('t', 'input/texture'), params: { texture: 'smoke' } },
+            out: node('out', 'output/surface'),
+        },
+        connections: [link('c1', 't', 'color', 'out', 'color'), link('c2', 't', 'alpha', 'out', 'opacity')],
+        textures: { smoke: { src: PIXEL } },
+        ...extra,
+    });
+
+    it('three: выборка по uv поверхности, sampler объявлен и привязан к имени', () => {
+        const { program, errors } = compileGlsl(textured(), registry, 'three');
+        expect(errors).toEqual([]);
+        expect(program!.samplers).toEqual([{ uniform: 'uTex0', texture: 'smoke' }]);
+        expect(program!.uniforms).toBe('uniform sampler2D uTex0;');
+        expect(program!.body).toContain('texture(uTex0, vUv).rgb');
+        expect(buildThreeShader(program!).fragmentShader).toContain('uniform sampler2D uTex0;');
+    });
+
+    it('pixi: выборка через fxTex (прямая альфа, линейный цвет, начало снизу)', () => {
+        const { program, errors } = compileGlsl(textured(), registry, 'pixi');
+        expect(errors).toEqual([]);
+        expect(program!.body).toContain('fxTex(uTex0, vUv)');
+        expect(program!.helpers).toContain('vec4 fxTex(sampler2D s, vec2 uv)');
+        expect(buildPixiFragment(program!)).toContain('uniform sampler2D uTex0;');
+    });
+
+    it('одна текстура в нескольких нодах получает один sampler', () => {
+        const g = textured();
+        g.nodes.t2 = { ...node('t2', 'input/texture'), params: { texture: 'smoke' } };
+        const { program } = compileGlsl(g, registry, 'three');
+        expect(program!.samplers).toHaveLength(1);
+    });
+
+    it('ссылка на несуществующую текстуру и пустой выбор дают ошибки ноды, а не падение', () => {
+        const missing = compileGlsl(textured({ textures: {} }), registry, 'three');
+        expect(missing.program).toBeNull();
+        expect(missing.errors[0]).toMatchObject({ kind: 'build', nodeId: 't' });
+        expect(missing.errors[0]!.message).toContain('smoke');
+
+        const g = textured();
+        g.nodes.t = node('t', 'input/texture');
+        const none = compileGlsl(g, registry, 'three');
+        expect(none.errors[0]).toMatchObject({ kind: 'build', nodeId: 't' });
+    });
+
+    it('Flipbook и UV transform: кадр спрайт-листа из возраста частицы', () => {
+        const g: Graph = {
+            nodes: {
+                p: node('p', 'input/particle'),
+                f: node('f', 'uv/flipbook', { columns: 4, rows: 2 }),
+                x: node('x', 'uv/transform', { tiling: [2, 2], offset: [0.5, 0] }),
+                t: { ...node('t', 'input/texture'), params: { texture: 'smoke' } },
+                out: node('out', 'output/surface'),
+            },
+            connections: [
+                link('1', 'p', 'age', 'f', 'phase'),
+                link('2', 'f', 'uv', 'x', 'uv'),
+                link('3', 'x', 'uv', 't', 'uv'),
+                link('4', 't', 'color', 'out', 'color'),
+            ],
+            textures: { smoke: { src: PIXEL } },
+        };
+        const { program, errors } = compileGlsl(g, registry, 'three-particles');
+        expect(errors).toEqual([]);
+        expect(program!.helpers).toContain('vec2 fxFlipbook(');
+        expect(program!.body).toMatch(/vec2 n\d+_uv = fxFlipbook\(vUv, 4\.0, 2\.0, n\d+_age\);/);
+        expect(program!.body).toContain('* vec2(2.0, 2.0) + vec2(0.5, 0.0)');
+    });
+});

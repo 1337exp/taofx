@@ -1,9 +1,10 @@
-import { color, float, uniform, vec2, vec3, vec4 } from 'three/tsl';
+import { color, float, uniform, uv, vec2, vec3, vec4 } from 'three/tsl';
 import { checkCapabilities } from '../graph/capabilities';
 import type { Registry } from '../graph/registry';
 import { resolveTypes, type GraphError } from '../graph/resolve';
 import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type Graph, type PinRef } from '../graph/types';
 import { tslBuilders } from './builders';
+import { graphTextures, type TextureLookup } from './textures';
 import type { TslBuild, TslParticleInputs, TslValue } from './types';
 
 export { OUTPUT_NODE };
@@ -17,6 +18,8 @@ export const TSL_PARTICLE_CAPABILITIES: readonly Capability[] = ['particle'];
 export interface CompileOptions {
     /** Сборка для системы частиц: данные частицы из инстансных атрибутов. */
     particle?: TslParticleInputs;
+    /** Откуда брать текстуры нод; по умолчанию картинки из `graph.textures`. */
+    textures?: TextureLookup;
 }
 
 export interface CompiledSurface {
@@ -84,8 +87,10 @@ export function compile(graph: Graph, registry: Registry, builders: Record<strin
     errors.push(...checkCapabilities(graph, registry, options.particle ? TSL_PARTICLE_CAPABILITIES : TSL_CAPABILITIES, 'TSL'));
 
     const time = uniform(0);
+    const lookup = options.textures ?? graphTextures(graph);
     const linkTo = (ref: PinRef) => graph.connections.find((c) => c.to.node === ref.node && c.to.pin === ref.pin);
     const built = new Map<string, Record<string, TslValue>>();
+    const failedNodes = new Set<string>(); // упавшую ноду строим один раз: её выходов может быть несколько, а ошибка одна
 
     function inputsOf(id: string): Record<string, TslValue> {
         const node = graph.nodes[id]!;
@@ -96,7 +101,9 @@ export function compile(graph: Graph, registry: Registry, builders: Record<strin
         for (const [name, pin] of Object.entries(def.inputs)) {
             const to = rt.inputs[name]!;
             const link = linkTo({ node: id, pin: name });
-            if (link) {
+            if (!link && pin.fallback === 'uv') {
+                values[name] = uv();
+            } else if (link) {
                 const out = outputsOf(link.from.node)?.[link.from.pin];
                 const from = types[link.from.node]?.outputs[link.from.pin];
                 values[name] = out !== undefined && from ? cast(out, from, to) : constant(to, pin.default);
@@ -110,6 +117,7 @@ export function compile(graph: Graph, registry: Registry, builders: Record<strin
     function outputsOf(id: string): Record<string, TslValue> | null {
         const cached = built.get(id);
         if (cached) return cached;
+        if (failedNodes.has(id)) return null;
         const node = graph.nodes[id];
         const def = node && registry.get(node.type);
         if (!def || !types[id]) return null; // ошибка уже записана при выводе типов
@@ -121,10 +129,20 @@ export function compile(graph: Graph, registry: Registry, builders: Record<strin
         }
 
         try {
-            const result = build(inputsOf(id), { time, particle: options.particle });
+            const result = build(inputsOf(id), {
+                time,
+                particle: options.particle,
+                params: node?.params ?? {},
+                texture(name) {
+                    const t = lookup(name);
+                    if (!t) throw new Error(`Texture "${name}" is not in the graph`);
+                    return t;
+                },
+            });
             built.set(id, result);
             return result;
         } catch (e) {
+            failedNodes.add(id);
             fail({ kind: 'build', message: e instanceof Error ? e.message : String(e), nodeId: id });
             return null;
         }

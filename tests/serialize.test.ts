@@ -92,3 +92,32 @@ describe('parse: недопустимые связи отбрасываются,
         expect(r).toMatchObject({ ok: true, view: undefined });
     });
 });
+
+describe('текстуры и параметры в файле', () => {
+    const base = (graph: unknown) => JSON.stringify({ format: 'taofx', version: 1, graph });
+    const registry = createDefaultRegistry();
+    const tex = { smoke: { src: 'data:image/png;base64,AAAA' } };
+    const node = { id: 't', type: 'input/texture', x: 0, y: 0, values: {}, params: { texture: 'smoke' } };
+
+    it('круг: параметры ноды и текстуры графа сохраняются и читаются', () => {
+        const text = base({ nodes: { t: node }, connections: [], textures: tex });
+        const r = parse(text, registry);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.graph.nodes.t!.params).toEqual({ texture: 'smoke' });
+        expect(r.graph.textures).toEqual(tex);
+        expect(JSON.parse(serialize(r.graph)).graph.textures).toEqual(tex);
+    });
+
+    it('без текстур поля нет, мусор отклоняется', () => {
+        const ok = parse(base({ nodes: {}, connections: [] }), registry);
+        expect(ok.ok && ok.graph.textures).toBeFalsy();
+
+        for (const textures of [[], { a: 5 }, { a: { src: '' } }, { a: { src: 'x'.repeat(4_000_001) } }]) {
+            const r = parse(base({ nodes: {}, connections: [], textures }), registry);
+            expect(r.ok, JSON.stringify(textures).slice(0, 40)).toBe(false);
+        }
+        expect(parse(base({ nodes: { t: { ...node, params: { texture: 5 } } }, connections: [] }), registry).ok).toBe(false);
+        expect(parse(base({ nodes: { t: { ...node, params: [] } }, connections: [] }), registry).ok).toBe(false);
+    });
+});

@@ -1,4 +1,4 @@
-import { Buffer, BufferUsage, Geometry, GlProgram, Mesh, Shader } from 'pixi.js';
+import { Buffer, BufferUsage, Geometry, GlProgram, Mesh, Shader, type Texture } from 'pixi.js';
 import { compileGlsl } from '../glsl/compile';
 import { buildPixiParticleShaders } from '../glsl/particleTargets';
 import { TIME_UNIFORM } from '../glsl/targets';
@@ -8,11 +8,14 @@ import { createDefaultRegistry } from '../nodes';
 import { loadParticleFile } from '../particles/load';
 import { createBuffers, createSimulation } from '../particles/sim';
 import type { ParticleFile } from '../particles/types';
+import { textureResources } from './textures';
 
 export interface PixiParticleOptions {
     registry?: Registry;
     /** Пикселей на мировую единицу системы (в системе размеры и скорости в единицах). По умолчанию 100. */
     scale?: number;
+    /** Свои текстуры по имени из графа вместо картинок из файла. */
+    textures?: Record<string, Texture>;
 }
 
 export interface PixiParticleEffect {
@@ -24,7 +27,7 @@ export interface PixiParticleEffect {
     dispose(): void;
 }
 
-const ERROR_PROGRAM = { target: 'pixi-particles' as const, helpers: '', body: 'vec3 fxColor = vec3(1.0, 0.0, 1.0);\n    float fxOpacity = 1.0;' };
+const ERROR_PROGRAM = { target: 'pixi-particles' as const, uniforms: '', samplers: [], helpers: '', body: 'vec3 fxColor = vec3(1.0, 0.0, 1.0);\n    float fxOpacity = 1.0;' };
 
 /** Углы квадрата в системе, где Y вверх: от нижнего левого против часовой. */
 const CORNERS: [number, number][] = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
@@ -76,7 +79,7 @@ export function createPixiParticles(source: string | ParticleFile, options: Pixi
     const { vertex: vert, fragment } = buildPixiParticleShaders(program ?? ERROR_PROGRAM);
     const shader = new Shader({
         glProgram: new GlProgram({ vertex: vert, fragment, name: 'taofx-particles' }),
-        resources: { fxUniforms: { [TIME_UNIFORM]: { value: 0, type: 'f32' } } },
+        resources: { fxUniforms: { [TIME_UNIFORM]: { value: 0, type: 'f32' } }, ...textureResources(program ?? ERROR_PROGRAM, file.material, options.textures) },
     });
     const object = new Mesh({ geometry, shader });
     if (system.blend === 'add') object.blendMode = 'add';

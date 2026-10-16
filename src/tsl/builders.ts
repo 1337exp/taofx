@@ -1,4 +1,4 @@
-import { float, mix, mx_noise_float, normalView, positionViewDirection, select, smoothstep, uv, vec2 } from 'three/tsl';
+import { float, floor, max, mix, mx_noise_float, normalView, positionViewDirection, select, smoothstep, texture, uv, vec2 } from 'three/tsl';
 import type { TslBuild } from './types';
 
 // float растягивается на тип образца: у pow и clamp оба аргумента должны быть одного типа с основным
@@ -18,6 +18,24 @@ export const tslBuilders: Record<string, TslBuild> = {
         if (!particle) throw new Error('Particle data is only available in a particle system');
         return { ...particle };
     },
+
+    'input/texture': ({ uv: coords }, { params, texture: lookup }) => {
+        const name = params.texture;
+        if (!name) throw new Error('No texture selected');
+        const sample = texture(lookup(name), coords);
+        return { color: sample.rgb, alpha: sample.a };
+    },
+
+    'uv/flipbook': ({ uv: coords, columns, rows, phase }) => {
+        // как в GLSL: кадры слева направо и сверху вниз, phase 0…1 пробегает их подряд
+        const c = max(floor(columns), 1);
+        const r = max(floor(rows), 1);
+        const frame = floor(phase.clamp(0, 0.999999).mul(c).mul(r));
+        const col = frame.mod(c);
+        const row = floor(frame.div(c));
+        return { uv: coords.add(vec2(col, r.sub(1).sub(row))).div(vec2(c, r)) };
+    },
+    'uv/transform': ({ uv: coords, tiling, offset }) => ({ uv: coords.mul(tiling).add(offset) }),
 
     'const/float': ({ value }) => ({ value }),
     'const/color': ({ value }) => ({ color: value }),
