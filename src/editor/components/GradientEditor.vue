@@ -5,7 +5,7 @@ import '@1337exp/taoux/gradienteditor.css';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
-import { removeStop, toLinear, toSrgb } from '../curveOps';
+import { removeStop, roundAlpha, toLinear, toSrgb } from '../curveOps';
 import { fromHex, toHex } from '../values';
 
 // Полоса с ручками это модуль taoux; здесь вокруг неё выбор цвета, прозрачность и кнопка на TaoUI.
@@ -29,7 +29,7 @@ function onColor(e: Event) {
 }
 
 function onAlpha(value: number | string) {
-    patchStop({ alpha: Math.min(1, Math.max(0, Number(value))) });
+    patchStop({ alpha: roundAlpha(Number(value)) });
 }
 
 function remove() {
@@ -61,7 +61,7 @@ function remove() {
 <style scoped>
 .gradient {
     --tx-gradient-border: var(--tao-color-border);
-    --tx-gradient-stop-border: var(--tao-color-text-muted);
+    --tx-gradient-stop-border: var(--tao-color-border-strong);
     --tx-gradient-accent: var(--tao-color-accent);
 }
 
