@@ -5,15 +5,36 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Рантайм (src/lib, src/graph, src/nodes) уходит в игры без редактора, поэтому не должен знать про Vue, Pinia, i18n,
- * вид редактора и предпросмотр, а все его импорты внутри пакета обязаны быть относительными (иначе алиас `@/`
- * попадёт в .d.ts и сломает типы у потребителя).
+ * Рантайм уходит в игры без редактора и без выбора рендерера за них, поэтому:
+ *   - ядро (graph, nodes, glsl) не знает ни про Vue, ни про three, ни про PIXI: им можно пользоваться без рендерера;
+ *   - у каждого рендерера свой модуль и своя зависимость (tsl: three/tsl и three/webgpu, three: three, pixi: pixi.js),
+ *     и они не лезут друг в друга;
+ *   - внутри пакета только относительные импорты (иначе алиас `@/` попадёт в .d.ts и сломает типы у потребителя);
+ *   - `lib` только собирает публичные входы из остальных модулей.
  */
 const srcDir = fileURLToPath(new URL('../src', import.meta.url));
-const RUNTIME_DIRS = ['lib', 'graph', 'nodes'];
 
-/** Что рантайму можно импортировать снаружи. @1337exp/taoux/ids вшивается в сборку (мелкий uid). */
-const ALLOWED_EXTERNAL = [/^three(\/|$)/, /^@1337exp\/taoux\/ids$/];
+interface Zone {
+    /** Папки модуля. */
+    dirs: string[];
+    /** Разрешённые внешние пакеты. */
+    external: RegExp[];
+    /** В какие модули можно лезть по относительным путям (кроме себя). */
+    uses: string[];
+}
+
+/** @1337exp/taoux/ids вшивается в сборку (мелкий uid), больше пакет ни от чего не зависит. */
+const IDS = /^@1337exp\/taoux\/ids$/;
+
+const ZONES: Record<string, Zone> = {
+    core: { dirs: ['graph', 'nodes', 'glsl'], external: [IDS], uses: [] },
+    tsl: { dirs: ['tsl'], external: [/^three\/(tsl|webgpu)$/], uses: ['core'] },
+    three: { dirs: ['three'], external: [/^three$/], uses: ['core'] },
+    pixi: { dirs: ['pixi'], external: [/^pixi\.js$/], uses: ['core'] },
+    lib: { dirs: ['lib'], external: [], uses: ['core', 'tsl', 'three', 'pixi'] },
+};
+
+const zoneOfDir = (dir: string) => Object.keys(ZONES).find((z) => ZONES[z]!.dirs.includes(dir));
 
 function walk(dir: string): string[] {
     return readdirSync(dir).flatMap((e) => {
@@ -27,28 +48,31 @@ const imports = (file: string) =>
         (m) => (m[1] ?? m[2] ?? m[3])!,
     );
 
-describe('рантайм не зависит от редактора', () => {
-    const files = RUNTIME_DIRS.flatMap((d) => walk(join(srcDir, d))).filter((f) => f.endsWith('.ts'));
+describe('рантайм не зависит от редактора и не смешивает рендереры', () => {
+    for (const [name, zone] of Object.entries(ZONES)) {
+        const files = zone.dirs.flatMap((d) => walk(join(srcDir, d))).filter((f) => f.endsWith('.ts'));
 
-    it('находит файлы рантайма', () => {
-        expect(files.length).toBeGreaterThan(15);
-    });
+        it(`${name}: есть файлы`, () => {
+            expect(files.length).toBeGreaterThan(0);
+        });
 
-    it('импортирует только относительные пути и разрешённые пакеты', () => {
-        for (const file of files) {
-            for (const spec of imports(file)) {
-                const ok = spec.startsWith('./') || spec.startsWith('../') || ALLOWED_EXTERNAL.some((re) => re.test(spec));
-                expect(ok, `${file.slice(srcDir.length + 1)} импортирует «${spec}»`).toBe(true);
+        it(`${name}: внешние импорты только из разрешённых пакетов`, () => {
+            for (const file of files) {
+                for (const spec of imports(file).filter((s) => !s.startsWith('.'))) {
+                    expect(zone.external.some((re) => re.test(spec)), `${file.slice(srcDir.length + 1)} импортирует «${spec}»`).toBe(true);
+                }
             }
-        }
-    });
+        });
 
-    it('относительные импорты не выходят из рантайма (в editor, i18n, preview, App)', () => {
-        for (const file of files) {
-            for (const spec of imports(file).filter((s) => s.startsWith('.'))) {
-                const target = join(file, '..', spec).slice(srcDir.length + 1).split(/[\\/]/)[0]!.replace(/\.ts$/, '');
-                expect(RUNTIME_DIRS.includes(target), `${file.slice(srcDir.length + 1)} тянет «${spec}»`).toBe(true);
+        it(`${name}: относительные импорты не выходят за разрешённые модули`, () => {
+            for (const file of files) {
+                for (const spec of imports(file).filter((s) => s.startsWith('.'))) {
+                    const targetDir = join(file, '..', spec).slice(srcDir.length + 1).split(/[\\/]/)[0]!.replace(/\.ts$/, '');
+                    const target = zoneOfDir(targetDir);
+                    const allowed = target === name || (target !== undefined && zone.uses.includes(target));
+                    expect(allowed, `${file.slice(srcDir.length + 1)} тянет «${spec}» (модуль ${target ?? targetDir})`).toBe(true);
+                }
             }
-        }
-    });
+        });
+    }
 });

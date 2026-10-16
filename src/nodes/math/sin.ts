@@ -5,5 +5,5 @@ export default defineNode({
     title: 'Sin',
     inputs: { x: { type: 'gen', default: 0 } },
     outputs: { result: { type: 'gen' } },
-    build: ({ x }) => ({ result: x.sin() }),
+    glsl: ({ x }) => ({ result: `sin(${x})` }),
 });

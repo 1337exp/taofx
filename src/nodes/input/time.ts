@@ -1,4 +1,3 @@
-import { time } from 'three/tsl';
 import { defineNode } from '../../graph/registry';
 
 export default defineNode({
@@ -6,5 +5,5 @@ export default defineNode({
     title: 'Time',
     inputs: {},
     outputs: { t: { type: 'float' } },
-    build: () => ({ t: time }),
+    glsl: () => ({ t: 'uTime' }),
 });

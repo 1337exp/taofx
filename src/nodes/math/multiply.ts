@@ -5,5 +5,5 @@ export default defineNode({
     title: 'Multiply',
     inputs: { a: { type: 'gen', default: 1 }, b: { type: 'gen', default: 1 } },
     outputs: { result: { type: 'gen' } },
-    build: ({ a, b }) => ({ result: a.mul(b) }),
+    glsl: ({ a, b }) => ({ result: `(${a} * ${b})` }),
 });

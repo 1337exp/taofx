@@ -5,5 +5,5 @@ export default defineNode({
     title: 'Color',
     inputs: { value: { type: 'color', default: [1, 1, 1] } },
     outputs: { color: { type: 'color' } },
-    build: ({ value }) => ({ color: value }),
+    glsl: ({ value }) => ({ color: value! }),
 });

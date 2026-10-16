@@ -1,4 +1,3 @@
-import { smoothstep } from 'three/tsl';
 import { defineNode } from '../../graph/registry';
 
 export default defineNode({
@@ -6,5 +5,5 @@ export default defineNode({
     title: 'Smoothstep',
     inputs: { low: { type: 'float', default: 0 }, high: { type: 'float', default: 1 }, x: { type: 'float', default: 0.5 } },
     outputs: { result: { type: 'float' } },
-    build: ({ low, high, x }) => ({ result: smoothstep(low, high, x) }),
+    glsl: ({ low, high, x }) => ({ result: `smoothstep(${low}, ${high}, ${x})` }),
 });

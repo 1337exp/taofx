@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cast, compile, constant } from '@/graph/compile';
+import { cast, compile, constant } from '@/tsl/compile';
+import { tslBuilders } from '@/tsl/builders';
 import { canConnect, resolveTypes } from '@/graph/resolve';
 import type { Graph } from '@/graph/types';
 import { WIDTH } from '@/graph/types';
@@ -133,32 +134,59 @@ describe('compile', () => {
 
     it('строит каждую ноду один раз, даже если выход используют несколько входов', () => {
         let calls = 0;
-        const counting = createDefaultRegistry();
-        const real = counting.get('input/time')!;
-        const original = real.build;
-        real.build = () => {
-            calls++;
-            return original({});
+        const builders = {
+            ...tslBuilders,
+            'input/time': (inputs: Parameters<typeof tslBuilders['input/time']>[0], ctx: Parameters<typeof tslBuilders['input/time']>[1]) => {
+                calls++;
+                return tslBuilders['input/time']!(inputs, ctx);
+            },
         };
         const g = graph(
             { t: node('t', 'input/time'), m: node('m', 'math/multiply'), out: node('out', 'output/surface') },
             [link('1', 't', 't', 'm', 'a'), link('2', 't', 't', 'm', 'b'), link('3', 'm', 'result', 'out', 'opacity')],
         );
-        expect(compile(g, counting).errors).toEqual([]);
+        expect(compile(g, registry, builders).errors).toEqual([]);
         expect(calls).toBe(1);
     });
 
-    it('ошибку в build ноды отдаёт в errors с id ноды, а не бросает', () => {
-        const broken = createDefaultRegistry();
-        broken.get('math/sin')!.build = () => {
-            throw new Error('boom');
+    it('ошибку в реализации ноды отдаёт в errors с id ноды, а не бросает', () => {
+        const builders = {
+            ...tslBuilders,
+            'math/sin': () => {
+                throw new Error('boom');
+            },
         };
         const g = graph(
             { s: node('s', 'math/sin'), out: node('out', 'output/surface') },
             [link('1', 's', 'result', 'out', 'opacity')],
         );
-        const r = compile(g, broken);
+        const r = compile(g, registry, builders);
         expect(r.surface).toBeNull();
         expect(r.errors[0]).toMatchObject({ kind: 'build', nodeId: 's', message: 'boom' });
+    });
+
+    it('нода без TSL-реализации даёт unsupported, а время идёт из uniform', () => {
+        const without = { ...tslBuilders };
+        delete without['math/sin'];
+        const g = graph({ s: node('s', 'math/sin'), out: node('out', 'output/surface') }, [link('1', 's', 'result', 'out', 'opacity')]);
+        expect(compile(g, registry, without).errors[0]).toMatchObject({ kind: 'unsupported', nodeId: 's' });
+
+        const ok = compile(DEMO_GRAPH, registry);
+        expect(ok.surface!.time.value).toBe(0);
+        ok.surface!.time.value = 2.5;
+        expect(ok.surface!.time.value).toBe(2.5);
+    });
+
+    it('нода, которой нужна картинка-источник, не собирается в TSL', () => {
+        const g = graph({ src: node('src', 'input/source'), out: node('out', 'output/surface') }, [link('1', 'src', 'alpha', 'out', 'opacity')]);
+        const r = compile(g, registry);
+        expect(r.surface).toBeNull();
+        expect(r.errors[0]).toMatchObject({ kind: 'unsupported', nodeId: 'src' });
+        expect(r.errors[0]!.message).toMatch(/source/);
+    });
+
+    it('ненужная неподключённая нода сборку не ломает', () => {
+        const g = graph({ src: node('src', 'input/source'), out: node('out', 'output/surface') });
+        expect(compile(g, registry).errors).toEqual([]);
     });
 });

@@ -5,5 +5,5 @@ export default defineNode({
     title: 'Float',
     inputs: { value: { type: 'float', default: 0 } },
     outputs: { value: { type: 'float' } },
-    build: ({ value }) => ({ value }),
+    glsl: ({ value }) => ({ value: value! }),
 });

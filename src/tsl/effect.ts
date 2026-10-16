@@ -1,23 +1,19 @@
 import type { MeshBasicNodeMaterial } from 'three/webgpu';
-import { compile } from '../graph/compile';
-import { createSurfaceMaterial, errorSurface } from '../graph/material';
-import { parse, type LoadError } from '../graph/serialize';
+import { loadGraph } from '../graph/load';
 import type { Registry } from '../graph/registry';
 import type { GraphError } from '../graph/resolve';
 import type { Graph } from '../graph/types';
 import { createDefaultRegistry } from '../nodes';
-
-/** Файл эффекта не удалось прочитать: причина в `error.code` (`invalidJson`, `notTaofxFile`, `newerVersion`, ...). */
-export class EffectLoadError extends Error {
-    constructor(readonly error: LoadError) {
-        super(`Cannot load effect: ${error.code}${error.detail ? ` (${error.detail})` : ''}`);
-        this.name = 'EffectLoadError';
-    }
-}
+import { tslBuilders } from './builders';
+import { compile } from './compile';
+import { createSurfaceMaterial, errorSurface } from './material';
+import type { TslBuild } from './types';
 
 export interface EffectOptions {
     /** Свои типы нод вместо встроенных. */
     registry?: Registry;
+    /** TSL-реализации для своих нод (встроенные подмешиваются). */
+    builders?: Record<string, TslBuild>;
 }
 
 export interface Effect {
@@ -27,6 +23,8 @@ export interface Effect {
     readonly material: MeshBasicNodeMaterial;
     /** Ошибки сборки графа. Если они есть, материал пурпурный: ошибка видна в сцене, а игра не падает. */
     readonly errors: readonly GraphError[];
+    /** Время эффекта в секундах (нода «Время»). Вызывайте каждый кадр; своё время позволяет ставить эффект на паузу и перематывать. */
+    setTime(seconds: number): void;
     dispose(): void;
 }
 
@@ -36,22 +34,24 @@ export interface Effect {
  * ```ts
  * const effect = createEffect(await (await fetch('fire.json')).text());
  * mesh.material = effect.material;
+ * renderer.setAnimationLoop((t) => { effect.setTime(t / 1000); renderer.render(scene, camera); });
  * ```
  */
 export function createEffect(source: string | Graph, options: EffectOptions = {}): Effect {
     const registry = options.registry ?? createDefaultRegistry();
+    const graph = loadGraph(source, registry);
 
-    let graph: Graph;
-    if (typeof source === 'string') {
-        const result = parse(source, registry);
-        if (!result.ok) throw new EffectLoadError(result.error);
-        graph = result.graph;
-    } else {
-        graph = source;
-    }
+    const { surface, errors } = compile(graph, registry, { ...tslBuilders, ...options.builders });
+    const used = surface ?? errorSurface();
+    const material = createSurfaceMaterial(used);
 
-    const { surface, errors } = compile(graph, registry);
-    const material = createSurfaceMaterial(surface ?? errorSurface());
-
-    return { graph, material, errors, dispose: () => material.dispose() };
+    return {
+        graph,
+        material,
+        errors,
+        setTime: (seconds) => {
+            used.time.value = seconds;
+        },
+        dispose: () => material.dispose(),
+    };
 }

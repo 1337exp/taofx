@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { compile } from '@/graph/compile';
+import { compile } from '@/tsl/compile';
 import { useI18n } from '@/i18n';
 import { createPreview, type Preview, type Shape } from '@/preview/preview';
 import { useEditor } from '../store';

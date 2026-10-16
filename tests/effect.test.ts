@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_GRAPH } from '@/demo';
-import { createEffect, EffectLoadError, serializeEffect } from '@/lib';
+import { createEffect, EffectLoadError } from '@/lib/tsl';
+import { serializeEffect } from '@/lib';
 
 const demoText = serializeEffect(DEMO_GRAPH);
 

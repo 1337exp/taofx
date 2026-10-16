@@ -5,5 +5,5 @@ export default defineNode({
     title: 'Add',
     inputs: { a: { type: 'gen', default: 0 }, b: { type: 'gen', default: 0 } },
     outputs: { result: { type: 'gen' } },
-    build: ({ a, b }) => ({ result: a.add(b) }),
+    glsl: ({ a, b }) => ({ result: `(${a} + ${b})` }),
 });

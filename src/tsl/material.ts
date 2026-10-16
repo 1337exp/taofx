@@ -1,4 +1,4 @@
-import { float, vec3 } from 'three/tsl';
+import { float, uniform, vec3 } from 'three/tsl';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
 import type { CompiledSurface } from './compile';
 
@@ -17,4 +17,4 @@ export function applySurface(material: MeshBasicNodeMaterial, surface: CompiledS
 export const createSurfaceMaterial = (surface: CompiledSurface): MeshBasicNodeMaterial => applySurface(new MeshBasicNodeMaterial(), surface);
 
 /** Поверхность на случай, когда граф не собрался: пурпурный, как «нет шейдера» в движках, чтобы ошибку было видно. */
-export const errorSurface = (): CompiledSurface => ({ color: vec3(1, 0, 1), opacity: float(1) });
+export const errorSurface = (): CompiledSurface => ({ color: vec3(1, 0, 1), opacity: float(1), time: uniform(0) });

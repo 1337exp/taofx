@@ -1,7 +1,7 @@
 import type { Registry } from './registry';
 import { WIDTH, type DataType, type Graph, type PinRef, type PinType } from './types';
 
-export type GraphErrorKind = 'unknownNode' | 'unknownPin' | 'cycle' | 'incompatible' | 'noOutput' | 'build';
+export type GraphErrorKind = 'unknownNode' | 'unknownPin' | 'cycle' | 'incompatible' | 'noOutput' | 'build' | 'unsupported';
 
 export interface GraphError {
     kind: GraphErrorKind;

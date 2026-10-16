@@ -1,6 +1,6 @@
 import { BufferGeometry, Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
-import type { CompiledSurface } from '@/graph/compile';
-import { createSurfaceMaterial } from '@/graph/material';
+import type { CompiledSurface } from '@/tsl/compile';
+import { createSurfaceMaterial } from '@/tsl/material';
 
 export type Shape = 'sphere' | 'plane';
 
@@ -43,7 +43,12 @@ export async function createPreview(canvas: HTMLCanvasElement): Promise<Preview>
     observer.observe(canvas);
     resize();
 
+    // Время эффекта идёт от старта предпросмотра: uniform обновляем сами, часы three.js здесь не нужны.
+    let time: { value: number } | null = null;
+    const start = performance.now();
+
     renderer.setAnimationLoop(() => {
+        if (time) time.value = (performance.now() - start) / 1000;
         mesh.rotation.y += 0.004;
         renderer.render(scene, camera);
     });
@@ -52,6 +57,7 @@ export async function createPreview(canvas: HTMLCanvasElement): Promise<Preview>
         backend: (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2',
         setSurface(surface) {
             const next = createSurfaceMaterial(surface);
+            time = surface.time;
             mesh.material = next;
             material.dispose();
             material = next;

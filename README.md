@@ -1,6 +1,6 @@
 # taofx
 
-Визуальный редактор эффектов на three.js (TSL): граф нод слева, живой предпросмотр справа. Граф собирается в материал и сразу виден на сфере или плоскости (WebGPU, с откатом на WebGL2).
+Визуальный редактор эффектов и рантайм: один граф нод превращается в материал для **three.js (WebGPU/TSL или классический WebGL/GLSL)** и в фильтр **PIXI**. Слева граф, справа живой предпросмотр.
 
 ```bash
 npm install
@@ -13,19 +13,54 @@ npm run build:lib   # рантайм для игр: dist/
 
 ## Эффект в вашей игре
 
-```ts
-import { createEffect } from '@1337exp/taofx';
-import { Mesh, SphereGeometry, WebGPURenderer } from 'three/webgpu';
+Файл эффекта (кнопка «Сохранить» в редакторе) один и тот же. Бэкенд выбирает игра, подключая нужный вход пакета:
 
-const effect = createEffect(await (await fetch('fire.json')).text()); // файл из кнопки «Сохранить»
-if (effect.errors.length) console.warn(effect.errors); // граф не собрался: материал пурпурный, игра не падает
+| Вход | Для чего | Рендерер | Что даёт |
+|---|---|---|---|
+| `@1337exp/taofx/tsl` | three.js | `WebGPURenderer` из `three/webgpu` (сам откатывается на WebGL2) | `createEffect(file) → { material }` |
+| `@1337exp/taofx/three` | three.js | классический `WebGLRenderer` | `createGlslEffect(file) → { material }` (`ShaderMaterial`) |
+| `@1337exp/taofx/pixi` | PIXI v8 | WebGL (`preference: 'webgl'`) | `createPixiEffect(file) → { filter }` |
+| `@1337exp/taofx` | ядро | любой | разбор файла, граф из кода, правила связей, сборка в GLSL; не тянет ни three, ни PIXI |
+
+```ts
+// three.js, WebGPURenderer
+import { createEffect } from '@1337exp/taofx/tsl';
+const effect = createEffect(await (await fetch('fire.json')).text());
 mesh.material = effect.material;
+
+// three.js, классический WebGLRenderer (как в проектах на ShaderMaterial)
+import { createGlslEffect } from '@1337exp/taofx/three';
+const effect = createGlslEffect(text);
+mesh.material = effect.material;
+
+// PIXI
+import { createPixiEffect } from '@1337exp/taofx/pixi';
+const effect = createPixiEffect(text);
+sprite.filters = [effect.filter];
+
+// везде одинаково: свой отсчёт времени (пауза, перемотка) и ошибки без падения игры
+renderer.setAnimationLoop((t) => effect.setTime(t / 1000));
+if (effect.errors.length) console.warn(effect.errors); // граф не собрался: эффект пурпурный, игра не падает
 ```
 
-- Нужны `three >= 0.186` и **`WebGPURenderer` из `three/webgpu`**: он сам откатывается на WebGL2 и работает там, где нет WebGPU. Классический `WebGLRenderer` материалы на нодах (TSL) не поддерживает: проект на нём нужно сначала перевести на `WebGPURenderer` (постобработка `EffectComposer` при этом заменяется на узловую).
-- Подключение слинкованного пакета: в `vite.config.ts` игры `resolve.dedupe: ['three']`, иначе у пакета будет своя копия three.
-- Рабочий пример обычной three.js-сцены (свет, пол, обычные материалы, эффект как материал меша): [examples/plain-three](examples/plain-three).
-- Что внутри: `createEffect`, `parseEffect` / `serializeEffect`, `compile`, `createSurfaceMaterial`, построение графа из кода (`addNode`, `connect`), свои ноды (`defineNode`, `Registry`). Тест `runtime-isolation.test.ts` следит, чтобы рантайм не зависел от редактора.
+- **Возможности цели.** Нода объявляет, что ей нужно: «Френель» требует нормаль поверхности (есть у 3D-меша, нет у фильтра PIXI), «Исходная картинка» требует спрайт (есть только у PIXI). Компилятор не соберёт граф для цели без нужного и скажет, какая нода мешает: `Fresnel needs normal, which the pixi target does not provide`. Лишняя неподключённая нода сборку не ломает.
+- **PIXI.** Эффект рисуется внутри силуэта спрайта (непрозрачность умножается на его альфу). Цвет графа линейный, шейдер сам переводит его в sRGB: PIXI этого не делает. Фильтр содержит только программу WebGL; для рендерера WebGPU у PIXI понадобится WGSL-бэкенд (его пока нет).
+- **Подключение слинкованного пакета.** В `vite.config.ts` игры `resolve.dedupe: ['three']` (и `'pixi.js'`), иначе у пакета будет своя копия. Не кладите страницы с `three` и `pixi.js` в корень проекта с редактором: предсборка зависимостей Vite даст две копии three (в редакторе это ограничено `optimizeDeps.entries`).
+- **Свои ноды.** `defineNode({ ..., glsl })` для GLSL-бэкендов; для TSL реализация передаётся отдельно: `createEffect(text, { registry, builders: { 'my/node': (inputs, ctx) => ({ ... }) } })`.
+- Тест `runtime-isolation.test.ts` следит за границами: ядро (`graph`, `nodes`, `glsl`) не знает ни про рендереры, ни про Vue; каждый рендерер тянет только свою зависимость и не лезет в чужую.
+
+### Один эффект в трёх бэкендах: проверено
+
+Страница [examples/backends](examples/backends) считает один и тот же файл в TSL (three, WebGPU), GLSL (three, WebGLRenderer) и PIXI-фильтре, сравнивает кадры по пикселям и умеет мерить скорость. На времени 0, 1,5, 3,7, 7,35 и 10 с (кадр 256x256, шум Перлина, смешивание, френель):
+
+| Пара | Расхождение |
+|---|---|
+| TSL и GLSL в three | максимум 1/255, среднее 0,000 |
+| TSL и PIXI | максимум 1/255, среднее около 0,05 (PIXI пишет в 8 бит) |
+
+Шум MaterialX портирован на GLSL построчно из исходников three, поэтому результат побитово близок к TSL. Грубый замер (кадр 1024x1024, 120 кадров, WebGPU в Chrome на этой машине): TSL 0,35 мс, GLSL в three 0,34 мс, PIXI 0,13 мс. Замер не профайлер, и PIXI тут не вполне сопоставим (8-битная цель, другой путь отрисовки), но порядок величин показывает, что TSL и GLSL работают одинаково быстро.
+
+Другие примеры: [examples/plain-three](examples/plain-three): обычная three.js-сцена со светом и полом, эффект как материал меша.
 
 ## Как пользоваться редактором
 
@@ -45,13 +80,15 @@ mesh.material = effect.material;
 
 ## Как устроено
 
-- `src/lib/` — публичный API рантайма (`createEffect` и всё, что экспортирует пакет); `src/graph/` и `src/nodes/` — его ядро без Vue и DOM:
+- `src/lib/` — публичные входы пакета (ядро, tsl, three, pixi); ядро это `src/graph/`, `src/nodes/`, `src/glsl/` (без Vue, DOM и рендереров); рендереры: `src/tsl/`, `src/three/`, `src/pixi/`:
   - `types`, `registry`: граф (чистые данные) и определения нод;
   - `resolve`: вывод типов (`gen`-пин получает самый широкий тип среди подключённых, как genType в GLSL), правила связей;
   - `ops`: добавить/удалить ноду, `canConnect` (типы и циклы проверяются пробным выводом типов всего графа), `connect`, подбор пина для палитры;
-  - `compile`: граф в значения TSL, каждая нода строится один раз;
+  - `capabilities`: проверка, что цель даёт нодам нужное (нормаль, картинка);
+  - `glsl/`: граф в GLSL (каждая нода считается один раз и кладётся в переменную), шум MaterialX, каркасы шейдеров для three и PIXI;
+  - `tsl/`: граф в узлы TSL (`builders.ts` с реализациями нод, время через uniform), материал;
   - `serialize`: строгий разбор файла (недопустимые связи отбрасываются и считаются).
-- `src/nodes/<категория>/<имя>.ts` — определения нод, подхватываются автоматически. У ноды вместо `run` метод `build`: он строит узлы TSL, а не исполняется.
+- `src/nodes/<категория>/<имя>.ts` — определения нод (чистые данные: пины, `needs`, GLSL-эмиттер), подхватываются автоматически. TSL-реализация ноды лежит в `src/tsl/builders.ts`: определения не знают про three.
 - `src/editor/` — редактор: стор (Pinia, жизненный цикл документа из `taoux/session`), мост к общему холсту `canvasHost`, вид ноды с типизированными пинами и полями значений, слой связей, палитра, панель инструментов.
 - `src/preview/` — three.js `WebGPURenderer` и один меш с материалом из графа.
 - Типы пинов: `float`, `vec2`, `vec3`, `vec4`, `color`, плюс `gen`. Связь разрешена между одинаковыми размерами и из `float` в любой тип (растяжение); сужение запрещено.

@@ -22,20 +22,39 @@ export interface OutputPin {
     label?: string;
 }
 
-/**
- * Значение в скомпилированном графе. Для рендерера это узел TSL, но ядру он непрозрачен:
- * его создают и потребляют только `build` нод и компилятор.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Value = any;
+/** Нода, в которую сходится граф: её входы становятся результатом эффекта. */
+export const OUTPUT_NODE = 'output/surface';
 
+/**
+ * Что нода требует от цели вывода: нормаль поверхности (материал на 3D-меше) или исходную картинку
+ * (фильтр PIXI). Компилятор не соберёт граф для цели, которая этого не даёт, и скажет, какая нода мешает.
+ */
+export type Capability = 'normal' | 'source';
+
+/** Что получает GLSL-эмиттер ноды вместе с выражениями входов. */
+export interface GlslContext {
+    /** Типы входов после вывода `gen`: нужны, когда формула зависит от размерности. */
+    readonly types: Readonly<Record<string, DataType>>;
+    /** Подключить функцию GLSL (повторный вызов с тем же именем игнорируется). */
+    helper(name: string, code: string): void;
+}
+
+/** Строит выражения GLSL выходов из выражений входов (входы уже приведены к своим типам). */
+export type GlslEmit = (inputs: Record<string, string>, ctx: GlslContext) => Record<string, string>;
+
+/**
+ * Определение ноды: чистые данные, без привязки к рендереру. Как нода превращается в код, решает бэкенд:
+ * GLSL-эмиттер лежит здесь (`glsl`), TSL-реализация в `tsl/builders.ts`.
+ */
 export interface NodeDef {
     id: string;
     title: string;
     inputs: Record<string, InputPin>;
     outputs: Record<string, OutputPin>;
-    /** Строит значения выходов из значений входов (уже приведённых к нужным типам). */
-    build(inputs: Record<string, Value>): Record<string, Value>;
+    /** Чего ноде нужно от цели вывода. */
+    needs?: readonly Capability[];
+    /** Реализация для GLSL (three с WebGLRenderer, PIXI на WebGL). */
+    glsl?: GlslEmit;
 }
 
 //--------------------------------------------------

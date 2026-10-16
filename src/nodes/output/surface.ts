@@ -6,5 +6,5 @@ export default defineNode({
     title: 'Surface',
     inputs: { color: { type: 'color', default: [1, 1, 1] }, opacity: { type: 'float', default: 1 } },
     outputs: {},
-    build: () => ({}),
+    glsl: () => ({}),
 });

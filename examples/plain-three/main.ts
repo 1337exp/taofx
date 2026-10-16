@@ -1,5 +1,5 @@
 // Обычная three.js-сцена: свет, пол, обычные материалы. Эффект из редактора taofx это просто материал для меша.
-import { createEffect } from '@1337exp/taofx';
+import { createEffect } from '@1337exp/taofx/tsl';
 import {
     AmbientLight,
     Color,
@@ -63,7 +63,8 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
-renderer.setAnimationLoop(() => {
+renderer.setAnimationLoop((now) => {
+    effect.setTime(now / 1000);
     knot.rotation.y += 0.01;
     orb.rotation.y += 0.004;
     renderer.render(scene, camera);

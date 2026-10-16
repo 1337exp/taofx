@@ -7,6 +7,9 @@ export default defineConfig({
     plugins: [vue()],
     // dist занят библиотекой (vite.lib.config.ts), приложение собирается рядом.
     build: { outDir: 'dist-app' },
+    // Предсборку зависимостей строим только по редактору: страницы из examples/ тянут `three` и `pixi.js` другими путями,
+    // и тогда у редактора появляются две копии three (TSL ломается: «No stack defined for assign»).
+    optimizeDeps: { entries: ['index.html'] },
     resolve: {
         alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
         // Пакеты, слинкованные с соседних папок (@1337exp/taoux), не должны тащить вторую копию Vue.

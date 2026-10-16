@@ -8,5 +8,5 @@
         "outDir": "dist",
         "paths": {}
     },
-    "include": ["src/lib/**/*.ts", "src/graph/**/*.ts", "src/nodes/**/*.ts"]
+    "include": ["src/lib/**/*.ts", "src/graph/**/*.ts", "src/nodes/**/*.ts", "src/glsl/**/*.ts", "src/tsl/**/*.ts", "src/three/**/*.ts", "src/pixi/**/*.ts"]
 }

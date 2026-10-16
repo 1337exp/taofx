@@ -1,16 +1,23 @@
-import { color, float, vec2, vec3, vec4 } from 'three/tsl';
-import type { Registry } from './registry';
-import { resolveTypes, type GraphError } from './resolve';
-import { WIDTH, type Constant, type DataType, type Graph, type PinRef, type Value } from './types';
+import { color, float, uniform, vec2, vec3, vec4 } from 'three/tsl';
+import { checkCapabilities } from '../graph/capabilities';
+import type { Registry } from '../graph/registry';
+import { resolveTypes, type GraphError } from '../graph/resolve';
+import { OUTPUT_NODE, WIDTH, type Capability, type Constant, type DataType, type Graph, type PinRef } from '../graph/types';
+import { tslBuilders } from './builders';
+import type { TslBuild, TslValue } from './types';
 
-/** Нода, в которую сходится граф: её входы становятся материалом. */
-export const OUTPUT_NODE = 'output/surface';
+export { OUTPUT_NODE };
+
+/** Что TSL-цель даёт нодам: нормаль поверхности есть, картинки-источника нет. */
+export const TSL_CAPABILITIES: readonly Capability[] = ['normal'];
 
 export interface CompiledSurface {
     /** Цвет поверхности (vec3). */
-    color: Value;
+    color: TslValue;
     /** Непрозрачность (float). */
-    opacity: Value;
+    opacity: TslValue;
+    /** Время эффекта в секундах: uniform, который вызывающий обновляет каждый кадр (`time.value = t`). */
+    time: TslValue;
 }
 
 export interface CompileResult {
@@ -19,7 +26,7 @@ export interface CompileResult {
 }
 
 /** Константа нужного типа из числа или массива компонент (недостающие компоненты — нули). */
-export function constant(type: DataType, value: Constant | undefined): Value {
+export function constant(type: DataType, value: Constant | undefined): TslValue {
     const parts = Array.isArray(value) ? value : value === undefined ? [] : [value];
     const c = (i: number) => parts[i] ?? (parts.length === 1 && type !== 'float' ? parts[0]! : 0);
     switch (type) {
@@ -37,7 +44,7 @@ export function constant(type: DataType, value: Constant | undefined): Value {
 }
 
 /** Приводит значение к типу входа: тот же размер остаётся как есть, float растягивается на все компоненты. */
-export function cast(value: Value, from: DataType, to: DataType): Value {
+export function cast(value: TslValue, from: DataType, to: DataType): TslValue {
     if (WIDTH[from] === WIDTH[to]) return to === 'color' || from === 'color' ? vec3(value) : value;
     switch (to) {
         case 'vec2':
@@ -55,8 +62,9 @@ export function cast(value: Value, from: DataType, to: DataType): Value {
 /**
  * Собирает граф в значения TSL. Идём от ноды-выхода к источникам: что не ведёт к выходу, не строится.
  * Каждая нода строится один раз, даже если её выход используют несколько потребителей.
+ * `builders` позволяет подставить свои реализации нод (по умолчанию встроенные).
  */
-export function compile(graph: Graph, registry: Registry): CompileResult {
+export function compile(graph: Graph, registry: Registry, builders: Record<string, TslBuild> = tslBuilders): CompileResult {
     const { nodes: types, errors } = resolveTypes(graph, registry);
     const fail = (e: GraphError) => errors.push(e);
 
@@ -65,15 +73,17 @@ export function compile(graph: Graph, registry: Registry): CompileResult {
         fail({ kind: 'noOutput', message: `Graph has no "${OUTPUT_NODE}" node` });
         return { surface: null, errors };
     }
+    errors.push(...checkCapabilities(graph, registry, TSL_CAPABILITIES, 'TSL'));
 
+    const time = uniform(0);
     const linkTo = (ref: PinRef) => graph.connections.find((c) => c.to.node === ref.node && c.to.pin === ref.pin);
-    const built = new Map<string, Record<string, Value>>();
+    const built = new Map<string, Record<string, TslValue>>();
 
-    function inputsOf(id: string): Record<string, Value> {
+    function inputsOf(id: string): Record<string, TslValue> {
         const node = graph.nodes[id]!;
         const def = registry.get(node.type)!;
         const rt = types[id]!;
-        const values: Record<string, Value> = {};
+        const values: Record<string, TslValue> = {};
 
         for (const [name, pin] of Object.entries(def.inputs)) {
             const to = rt.inputs[name]!;
@@ -89,15 +99,21 @@ export function compile(graph: Graph, registry: Registry): CompileResult {
         return values;
     }
 
-    function outputsOf(id: string): Record<string, Value> | null {
+    function outputsOf(id: string): Record<string, TslValue> | null {
         const cached = built.get(id);
         if (cached) return cached;
         const node = graph.nodes[id];
         const def = node && registry.get(node.type);
         if (!def || !types[id]) return null; // ошибка уже записана при выводе типов
 
+        const build = builders[def.id];
+        if (!build) {
+            fail({ kind: 'unsupported', message: `Node "${def.id}" has no TSL implementation`, nodeId: id });
+            return null;
+        }
+
         try {
-            const result = def.build(inputsOf(id));
+            const result = build(inputsOf(id), { time });
             built.set(id, result);
             return result;
         } catch (e) {
@@ -106,8 +122,8 @@ export function compile(graph: Graph, registry: Registry): CompileResult {
         }
     }
 
-    if (!types[outId]) return { surface: null, errors };
-    let inputs: Record<string, Value>;
+    if (!types[outId] || errors.length > 0) return { surface: null, errors };
+    let inputs: Record<string, TslValue>;
     try {
         inputs = inputsOf(outId);
     } catch (e) {
@@ -116,5 +132,5 @@ export function compile(graph: Graph, registry: Registry): CompileResult {
     }
 
     if (errors.length > 0) return { surface: null, errors };
-    return { surface: { color: inputs.color, opacity: inputs.opacity }, errors };
+    return { surface: { color: inputs.color, opacity: inputs.opacity, time }, errors };
 }
