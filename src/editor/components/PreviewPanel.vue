@@ -6,7 +6,6 @@ import { createPreview, type Preview, type Shape } from '@/preview/preview';
 import { compile } from '@/tsl/compile';
 import { createParticles, type ParticleEffect } from '@/tsl/particles';
 import { layout } from '../layout';
-import { advance, timelineLength } from '../timeline';
 import { useEditor } from '../store';
 import ParticleInspector from './ParticleInspector.vue';
 import Timeline from './Timeline.vue';
@@ -46,15 +45,9 @@ function buildParticles() {
     editor.setCompileErrors([...fx.errors]);
     preview.setParticles(fx.object);
 
+    // время ведёт модель воспроизведения из стора (taoux/playback): кадру остаётся показать частицы на этот момент
     const effect = fx;
-    let last = -1;
-    preview.setFrameHook((seconds) => {
-        const dt = last < 0 ? 0 : seconds - last;
-        last = seconds;
-        const system = editor.system;
-        if (system && editor.playback.playing) editor.playback.time = advance(editor.playback.time, dt, timelineLength(system));
-        effect.setTime(editor.playback.time);
-    });
+    preview.setFrameHook(() => effect.setTime(editor.playback.time));
 }
 
 function rebuild() {

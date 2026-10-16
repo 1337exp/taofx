@@ -49,10 +49,6 @@ export default {
         errors: 'Ошибок: {0}',
     },
     timeline: {
-        play: 'Играть',
-        pause: 'Пауза',
-        restart: 'В начало',
-        scrub: 'Время',
         sec: 'с',
     },
     particles: {

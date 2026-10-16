@@ -1,8 +1,9 @@
 import { createCamera, MAX_ZOOM, MIN_ZOOM, screenToWorld, type Camera } from '@1337exp/taoux/camera';
 import { createPinRegistry } from '@1337exp/taoux/pins';
+import { createPlayback } from '@1337exp/taoux/playback';
 import { createDocumentSession, type SessionNotice } from '@1337exp/taoux/session';
 import { defineStore } from 'pinia';
-import { computed, markRaw, reactive, ref } from 'vue';
+import { computed, markRaw, reactive, ref, watch } from 'vue';
 import { DEMO_GRAPH } from '@/demo';
 import { DEMO_PARTICLES } from '@/demoParticles';
 import { defaultSystem } from '@/particles/serialize';
@@ -14,6 +15,7 @@ import type { Connection, Graph, PinRef, PinType } from '@/graph/types';
 import type { MessageKey } from '@/i18n';
 import { createDefaultRegistry } from '@/nodes';
 import { storage } from './persistence';
+import { timelineLength } from './timeline';
 
 export type PinDir = 'in' | 'out';
 
@@ -57,8 +59,16 @@ export const useEditor = defineStore('editor', () => {
     const graph = ref<Graph>(cloneDemo());
     /** Параметры системы частиц; null: документ это обычный материал. */
     const system = ref<SystemDef | null>(null);
-    /** Воспроизведение предпросмотра частиц (в историю и файл не входит). */
-    const playback = reactive({ playing: true, time: 0 });
+    /**
+     * Воспроизведение предпросмотра частиц (в историю и файл не входит): время ведёт модель из taoux, здесь её отражение для интерфейса.
+     * Цикл всегда включён (полоска показывает несколько циклов системы), играет только пока документ это система частиц.
+     */
+    const clip = createPlayback({ length: 2, loop: true });
+    const playback = reactive({ playing: false, time: 0 });
+    clip.subscribe((s) => {
+        playback.playing = s.playing;
+        playback.time = s.time;
+    });
     const camera = ref<Camera>(createCamera());
     const selection = reactive(new Set<string>());
     const selectedConnection = ref<string | null>(null);
@@ -303,11 +313,24 @@ export const useEditor = defineStore('editor', () => {
         commit(`system:${key}`);
     }
 
+    watch(
+        () => (system.value ? timelineLength(system.value) : null),
+        (length) => {
+            if (length) clip.setLength(length);
+        },
+        { immediate: true },
+    );
+    watch(
+        () => system.value !== null,
+        (isParticles) => (isParticles ? clip.play() : clip.pause()),
+        { immediate: true },
+    );
+
     /** Включает частицы в текущем документе: материал остаётся, добавляются параметры по умолчанию. */
     function enableParticles() {
         if (system.value) return;
         system.value = defaultSystem();
-        playback.time = 0;
+        clip.restart();
         commit();
     }
 
@@ -321,7 +344,7 @@ export const useEditor = defineStore('editor', () => {
     /** Заменяет документ стартовой системой частиц (фонтан); отменяется как обычная правка. */
     function startParticles() {
         loadGraph(JSON.parse(JSON.stringify(DEMO_PARTICLES)) as EditorDoc, { x: 0, y: 0, z: 1 });
-        playback.time = 0;
+        clip.restart();
         nextTickFit = true;
     }
     let nextTickFit = false;
@@ -395,6 +418,10 @@ export const useEditor = defineStore('editor', () => {
         system,
         systemKey,
         playback,
+        /** Перемотка предпросмотра на `time` секунд. */
+        seek: clip.seek,
+        /** Включает и выключает воспроизведение предпросмотра. */
+        setPlaying: (on: boolean) => (on ? clip.play() : clip.pause()),
         updateSystem,
         enableParticles,
         disableParticles,

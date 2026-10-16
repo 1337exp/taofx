@@ -21,9 +21,3 @@ export function timelineMarks(system: SystemDef, length: number): { time: number
     }
     return marks;
 }
-
-/** Продвигает время воспроизведения на `dt` с возвратом в начало по достижении конца. */
-export function advance(time: number, dt: number, length: number): number {
-    const next = time + dt;
-    return next >= length ? next % length : next;
-}

@@ -51,7 +51,7 @@
     }
   },
   "devDependencies": {
-    "@1337exp/taoui": "^2.1.1",
+    "@1337exp/taoui": "file:../taoui",
     "@1337exp/taoux": "file:../taoux",
     "@types/node": "^26.6.4",
     "@types/three": "^0.186.0",

@@ -50,10 +50,6 @@ const en: typeof ru = {
         errors: 'Errors: {0}',
     },
     timeline: {
-        play: 'Play',
-        pause: 'Pause',
-        restart: 'Restart',
-        scrub: 'Time',
         sec: 's',
     },
     particles: {
