@@ -16,6 +16,9 @@
   ],
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/1337exp/taofx#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/1337exp/taofx.git" },
+  "bugs": { "url": "https://github.com/1337exp/taofx/issues" },
   "sideEffects": false,
   "files": [
     "dist"

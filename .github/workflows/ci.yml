@@ -1,0 +1,34 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+# taofx подключает taoux как file:../taoux (пока он не опубликован), поэтому кладём его соседней папкой и собираем.
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  path: taofx
+            - uses: actions/checkout@v4
+              with:
+                  repository: 1337exp/taoux
+                  path: taoux
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+            - name: Build taoux
+              working-directory: taoux
+              run: |
+                  npm ci
+                  npm run build
+            - name: taofx
+              working-directory: taofx
+              run: |
+                  npm ci
+                  npx vue-tsc --noEmit
+                  npm test
+                  npm run build
