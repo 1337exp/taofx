@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import { TaoButton, TaoInputNumber, TaoSwitch } from '@1337exp/taoui';
-import { computed, ref } from 'vue';
+import { createEdgeScroller } from '@1337exp/taoux/edgescroll';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { Curve, CurvePoint } from '@/particles/types';
-import { addPoint, clampTo, movePoint, niceStep, removePoint, sameCurve, snapTo, ticks, toPoints, valueBounds } from '../curveOps';
+import { addPoint, clampTo, movePoint, niceStep, removePoint, roundTo, sameCurve, snapTo, ticks, toPoints, valueBounds } from '../curveOps';
 
 const props = defineProps<{
     modelValue: Curve;
@@ -12,6 +13,8 @@ const props = defineProps<{
     max?: number;
     /** Кривая «по умолчанию»: без неё кнопки сброса нет. */
     defaultValue?: Curve;
+    /** Сколько знаков после запятой оставлять у времени и значения; не задано — не обрезать. */
+    precision?: number;
 }>();
 const emit = defineEmits<{ 'update:modelValue': [value: CurvePoint[]]; commit: [] }>();
 const { t } = useI18n();
@@ -36,7 +39,9 @@ const snapOn = ref(true);
 const points = computed(() => toPoints(props.modelValue));
 // Пределы запоминаем на время перетаскивания: иначе график «плыл» бы под рукой
 const frozen = ref<{ min: number; max: number } | null>(null);
-const bounds = computed(() => frozen.value ?? valueBounds(points.value, props.min, props.max));
+// Сдвиг вида по значению: накапливает автопрокрутка у края, пока тянут точку
+const shift = ref(0);
+const bounds = computed(() => (frozen.value ? { min: frozen.value.min + shift.value, max: frozen.value.max + shift.value } : valueBounds(points.value, props.min, props.max)));
 const span = computed(() => bounds.value.max - bounds.value.min);
 
 const majorV = computed(() => niceStep(span.value, 4));
@@ -56,8 +61,14 @@ const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 const current = computed(() => points.value[Math.min(selected.value, points.value.length - 1)]!);
 const canReset = computed(() => props.defaultValue !== undefined && !sameCurve(points.value, toPoints(props.defaultValue)));
 
+interface PointerSample {
+    clientX: number;
+    clientY: number;
+    shiftKey: boolean;
+}
+
 /** Координаты указателя в единицах кривой; Shift временно меняет режим шага. */
-function toCurve(e: PointerEvent | MouseEvent): { t: number; v: number } {
+function toCurve(e: PointerSample): { t: number; v: number } {
     const r = svg.value!.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * W;
     const y = ((e.clientY - r.top) / r.height) * H;
@@ -68,10 +79,40 @@ function toCurve(e: PointerEvent | MouseEvent): { t: number; v: number } {
         tt = snapTo(tt, STEP_T);
         v = snapTo(v, stepV.value);
     }
-    return { t: tt, v: clampTo(Math.round(v * 1000) / 1000, props.min, props.max) };
+    return { t: roundTo(tt, props.precision), v: clampTo(roundTo(v, props.precision), props.min, props.max) };
 }
 
 let dragging = -1;
+let lastPointer: PointerSample = { clientX: 0, clientY: 0, shiftKey: false };
+
+/** Точка идёт за указателем: и при его движении, и когда вид уехал под неподвижным указателем. */
+function followPointer() {
+    if (dragging < 0) return;
+    const { t: tt, v } = toCurve(lastPointer);
+    emit('update:modelValue', movePoint(points.value, dragging, tt, v));
+}
+
+// Тянем точку к верхнему/нижнему краю графика: вид по значению едет следом (по времени он всегда 0…1).
+// Границы поля не пересекаем: при заданных min и max вид стоит.
+const scroller = createEdgeScroller({
+    bounds: () => svg.value?.getBoundingClientRect() ?? null,
+    pointer: () => [lastPointer.clientX, lastPointer.clientY],
+    enabled: () => dragging >= 0,
+    zone: 18,
+    maxSpeed: 240,
+    onScroll: (_dx, dy) => {
+        const base = frozen.value;
+        const r = svg.value?.getBoundingClientRect();
+        if (!base || !r) return;
+        // Видимая область уехала вниз на dy px: значения вида уменьшились
+        const dv = ((dy * H) / r.height / PLOT_H) * (base.max - base.min);
+        const lo = props.min === undefined ? -Infinity : props.min - base.min;
+        const hi = props.max === undefined ? Infinity : props.max - base.max;
+        shift.value = Math.min(hi, Math.max(lo, shift.value - dv));
+        followPointer();
+    },
+});
+onBeforeUnmount(scroller.stop);
 
 function onDown(e: PointerEvent, i: number) {
     selected.value = i;
@@ -82,20 +123,25 @@ function onDown(e: PointerEvent, i: number) {
         return;
     }
     dragging = i;
+    lastPointer = e;
+    shift.value = 0;
     frozen.value = valueBounds(points.value, props.min, props.max);
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
 }
 
 function onMove(e: PointerEvent) {
     if (dragging < 0) return;
-    const { t: tt, v } = toCurve(e);
-    emit('update:modelValue', movePoint(points.value, dragging, tt, v));
+    lastPointer = e;
+    followPointer();
+    scroller.kick();
 }
 
 function onUp() {
     if (dragging < 0) return;
     dragging = -1;
+    scroller.stop();
     frozen.value = null;
+    shift.value = 0;
     emit('commit');
 }
 
@@ -122,8 +168,8 @@ function onKey(e: KeyboardEvent) {
 function setField(field: 't' | 'v', value: number | null) {
     if (value === null || !Number.isFinite(value)) return;
     const p = current.value;
-    const tt = field === 't' ? value : p.t;
-    const v = field === 'v' ? clampTo(value, props.min, props.max) : p.v;
+    const tt = field === 't' ? roundTo(value, props.precision) : p.t;
+    const v = field === 'v' ? clampTo(roundTo(value, props.precision), props.min, props.max) : p.v;
     emit('update:modelValue', movePoint(points.value, selected.value, tt, v));
     emit('commit');
 }
@@ -163,8 +209,8 @@ function reset() {
         </svg>
 
         <div class="fields">
-            <label>{{ t('particles.pointTime') }}<TaoInputNumber size="small" :min="0" :max="1" :step="STEP_T" :controls="false" :model-value="current.t" @update:model-value="(x) => setField('t', x)" /></label>
-            <label>{{ t('particles.pointValue') }}<TaoInputNumber size="small" :min="min" :max="max" :step="stepV" :controls="false" :model-value="current.v" @update:model-value="(x) => setField('v', x)" /></label>
+            <label>{{ t('particles.pointTime') }}<TaoInputNumber size="small" :min="0" :max="1" :step="STEP_T" :precision="precision" :controls="false" :model-value="current.t" @update:model-value="(x) => setField('t', x)" /></label>
+            <label>{{ t('particles.pointValue') }}<TaoInputNumber size="small" :min="min" :max="max" :step="stepV" :precision="precision" :controls="false" :model-value="current.v" @update:model-value="(x) => setField('v', x)" /></label>
         </div>
 
         <div class="bar">
@@ -228,12 +274,14 @@ function reset() {
     fill: var(--tao-color-surface-sunken);
     stroke: var(--tao-color-accent);
     stroke-width: 2;
+    opacity: 0.7;
     cursor: grab;
 }
 
 .dot.on,
 .dot:hover {
     fill: var(--tao-color-accent);
+    opacity: 1;
 }
 
 .fields {

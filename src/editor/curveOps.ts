@@ -73,6 +73,13 @@ export function snapTo(x: number, step: number): number {
     return step > 0 ? Math.round(Math.round(x / step) * step * 1e6) / 1e6 + 0 : x;
 }
 
+/** Обрезает до `digits` знаков после запятой; без `digits` значение остаётся как есть. */
+export function roundTo(x: number, digits?: number): number {
+    if (digits === undefined) return x;
+    const k = Math.pow(10, Math.max(0, Math.floor(digits)));
+    return Math.round(x * k) / k + 0;
+}
+
 /** Зажимает v в границы кривой; незаданная граница не ограничивает. */
 export function clampTo(v: number, min?: number, max?: number): number {
     return Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v));

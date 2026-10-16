@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPoint, addStop, clampTo, gradientCss, movePoint, moveStop, niceStep, removePoint, removeStop, sameCurve, snapTo, ticks, toPoints, valueBounds } from '@/editor/curveOps';
+import { addPoint, addStop, clampTo, gradientCss, movePoint, moveStop, niceStep, removePoint, removeStop, roundTo, sameCurve, snapTo, ticks, toPoints, valueBounds } from '@/editor/curveOps';
 import type { GradientStop } from '@/particles/types';
 
 const pts = [{ t: 0, v: 0 }, { t: 0.5, v: 1 }, { t: 1, v: 0 }];
@@ -103,5 +103,15 @@ describe('сетка кривой', () => {
     it('сравнение кривых по значению', () => {
         expect(sameCurve(pts, toPoints(pts))).toBe(true);
         expect(sameCurve(1, [{ t: 0, v: 1 }, { t: 1, v: 1 }])).toBe(false);
+    });
+});
+
+describe('обрезка знаков', () => {
+    it('без digits ничего не трогает, с digits округляет', () => {
+        expect(roundTo(0.123456)).toBe(0.123456);
+        expect(roundTo(0.126, 2)).toBe(0.13);
+        expect(roundTo(1.5, 0)).toBe(2);
+        expect(roundTo(-0.001, 2)).toBe(0);
+        expect(Object.is(roundTo(-0.001, 2), -0)).toBe(false);
     });
 });

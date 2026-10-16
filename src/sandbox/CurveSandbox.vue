@@ -13,11 +13,12 @@ interface Case {
     note: string;
     min?: number;
     max?: number;
+    precision?: number;
     initial: Curve;
     value: Curve;
 }
 
-const make = (title: string, note: string, initial: Curve, min?: number, max?: number): Case => ({ title, note, min, max, initial, value: JSON.parse(JSON.stringify(initial)) as Curve });
+const make = (title: string, note: string, initial: Curve, min?: number, max?: number, precision?: number): Case => ({ title, note, min, max, precision, initial, value: JSON.parse(JSON.stringify(initial)) as Curve });
 
 // Разные границы значений: именно на них держится сетка и зажим
 const cases = ref<Case[]>([
@@ -25,6 +26,7 @@ const cases = ref<Case[]>([
     make('Непрозрачность, 0…1', 'min 0, max 1', [{ t: 0, v: 1 }, { t: 1, v: 0 }], 0, 1),
     make('Скорость, −1…1', 'min −1, max 1', [{ t: 0, v: 0 }, { t: 0.5, v: 1 }, { t: 1, v: -1 }], -1, 1),
     make('Без границ', 'всё авто', 2),
+    make('Два знака', 'precision 2, min 0: потяни точку к верхнему краю', [{ t: 0, v: 0 }, { t: 0.5, v: 1 }, { t: 1, v: 0 }], 0, undefined, 2),
 ]);
 
 const onLocale = (value: string | number | null) => {
@@ -42,7 +44,7 @@ const onLocale = (value: string | number | null) => {
         <div class="grid">
             <section v-for="c in cases" :key="c.title" class="case">
                 <h2>{{ c.title }} <small>{{ c.note }}</small></h2>
-                <CurveEditor v-model="c.value as never" :min="c.min" :max="c.max" :default-value="c.initial" />
+                <CurveEditor v-model="c.value as never" :min="c.min" :max="c.max" :precision="c.precision" :default-value="c.initial" />
                 <pre>{{ JSON.stringify(c.value) }}</pre>
             </section>
         </div>
