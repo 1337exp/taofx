@@ -4,11 +4,30 @@
 
 ```bash
 npm install
-npm run dev     # http://localhost:5173
+npm run dev         # редактор: http://localhost:5173
 npm test
+npm run build:lib   # рантайм для игр: dist/
 ```
 
-## Как пользоваться
+Репозиторий отдаёт два результата: **редактор** (приложение) и **рантайм** `@1337exp/taofx` (библиотека без Vue и редактора), которым игра показывает эффект из файла редактора.
+
+## Эффект в вашей игре
+
+```ts
+import { createEffect } from '@1337exp/taofx';
+import { Mesh, SphereGeometry, WebGPURenderer } from 'three/webgpu';
+
+const effect = createEffect(await (await fetch('fire.json')).text()); // файл из кнопки «Сохранить»
+if (effect.errors.length) console.warn(effect.errors); // граф не собрался: материал пурпурный, игра не падает
+mesh.material = effect.material;
+```
+
+- Нужны `three >= 0.186` и **`WebGPURenderer` из `three/webgpu`**: он сам откатывается на WebGL2 и работает там, где нет WebGPU. Классический `WebGLRenderer` материалы на нодах (TSL) не поддерживает: проект на нём нужно сначала перевести на `WebGPURenderer` (постобработка `EffectComposer` при этом заменяется на узловую).
+- Подключение слинкованного пакета: в `vite.config.ts` игры `resolve.dedupe: ['three']`, иначе у пакета будет своя копия three.
+- Рабочий пример обычной three.js-сцены (свет, пол, обычные материалы, эффект как материал меша): [examples/plain-three](examples/plain-three).
+- Что внутри: `createEffect`, `parseEffect` / `serializeEffect`, `compile`, `createSurfaceMaterial`, построение графа из кода (`addNode`, `connect`), свои ноды (`defineNode`, `Registry`). Тест `runtime-isolation.test.ts` следит, чтобы рантайм не зависел от редактора.
+
+## Как пользоваться редактором
 
 | Действие | Как |
 |---|---|
@@ -26,7 +45,7 @@ npm test
 
 ## Как устроено
 
-- `src/graph/` — ядро без Vue и DOM:
+- `src/lib/` — публичный API рантайма (`createEffect` и всё, что экспортирует пакет); `src/graph/` и `src/nodes/` — его ядро без Vue и DOM:
   - `types`, `registry`: граф (чистые данные) и определения нод;
   - `resolve`: вывод типов (`gen`-пин получает самый широкий тип среди подключённых, как genType в GLSL), правила связей;
   - `ops`: добавить/удалить ноду, `canConnect` (типы и циклы проверяются пробным выводом типов всего графа), `connect`, подбор пина для палитры;

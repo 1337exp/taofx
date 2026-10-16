@@ -1,5 +1,6 @@
 import { BufferGeometry, Color, Mesh, MeshBasicNodeMaterial, PerspectiveCamera, PlaneGeometry, Scene, SphereGeometry, WebGPURenderer } from 'three/webgpu';
 import type { CompiledSurface } from '@/graph/compile';
+import { createSurfaceMaterial } from '@/graph/material';
 
 export type Shape = 'sphere' | 'plane';
 
@@ -50,10 +51,7 @@ export async function createPreview(canvas: HTMLCanvasElement): Promise<Preview>
     return {
         backend: (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2',
         setSurface(surface) {
-            const next = new MeshBasicNodeMaterial();
-            next.colorNode = surface.color;
-            next.opacityNode = surface.opacity;
-            next.transparent = true;
+            const next = createSurfaceMaterial(surface);
             mesh.material = next;
             material.dispose();
             material = next;

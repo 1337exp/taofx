@@ -66,3 +66,10 @@ export interface Graph {
     nodes: Record<string, NodeInstance>;
     connections: Connection[];
 }
+
+/** Положение камеры редактора в файле: чтобы граф открывался там, где его оставили. */
+export interface SavedView {
+    x: number;
+    y: number;
+    z: number;
+}

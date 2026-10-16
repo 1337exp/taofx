@@ -1,7 +1,6 @@
-import type { Camera } from '@1337exp/taoux/camera';
 import { canConnect, createGraph } from './ops';
 import type { Registry } from './registry';
-import type { Connection, Constant, Graph, NodeInstance } from './types';
+import type { Connection, Constant, Graph, NodeInstance, SavedView } from './types';
 
 /** Имя формата в файле: по нему отличаем наш файл от любого другого JSON. */
 export const FORMAT = 'taofx';
@@ -17,10 +16,10 @@ export interface LoadError {
 }
 
 export type ParseResult =
-    | { ok: true; graph: Graph; view?: Camera; droppedConnections: number }
+    | { ok: true; graph: Graph; view?: SavedView; droppedConnections: number }
     | { ok: false; error: LoadError };
 
-export function serialize(graph: Graph, view?: Camera, pretty = true): string {
+export function serialize(graph: Graph, view?: SavedView, pretty = true): string {
     return JSON.stringify({ format: FORMAT, version: VERSION, view, graph }, null, pretty ? 2 : undefined);
 }
 
@@ -83,7 +82,7 @@ function parseConnection(index: number, raw: unknown): Connection {
     return { id: raw.id, from: ref(raw.from, `connections[${index}].from`), to: ref(raw.to, `connections[${index}].to`) };
 }
 
-function parseView(raw: unknown): Camera | undefined {
+function parseView(raw: unknown): SavedView | undefined {
     if (!isObj(raw) || !isNum(raw.x) || !isNum(raw.y) || !isNum(raw.z) || raw.z <= 0) return undefined;
     return { x: raw.x, y: raw.y, z: raw.z };
 }

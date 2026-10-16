@@ -1,5 +1,5 @@
 import { normalView, positionViewDirection } from 'three/tsl';
-import { defineNode } from '@/graph/registry';
+import { defineNode } from '../../graph/registry';
 
 /** 0 в центре видимой стороны, 1 на краю силуэта: основа свечения по контуру. */
 export default defineNode({

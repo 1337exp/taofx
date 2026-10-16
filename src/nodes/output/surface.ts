@@ -1,4 +1,4 @@
-import { defineNode } from '@/graph/registry';
+import { defineNode } from '../../graph/registry';
 
 /** Точка, в которую сходится граф: цвет и непрозрачность поверхности. Сама ничего не строит, её входы читает компилятор. */
 export default defineNode({

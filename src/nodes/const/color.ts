@@ -1,4 +1,4 @@
-import { defineNode } from '@/graph/registry';
+import { defineNode } from '../../graph/registry';
 
 export default defineNode({
     id: 'const/color',
