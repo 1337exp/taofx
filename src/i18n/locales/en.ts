@@ -103,7 +103,9 @@ const en: typeof ru = {
         expand: 'Parameters',
     },
     nodeTexts: {
-        nodes: {},
+        nodes: {
+            'math/remap': { pins: { inMin: 'in min', inMax: 'in max', outMin: 'out min', outMax: 'out max' } },
+        },
         categories: {},
     },
 };

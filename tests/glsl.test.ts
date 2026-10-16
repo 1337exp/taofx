@@ -157,3 +157,38 @@ describe('каркасы целей', () => {
         expect(fragment).toContain('1.0 - vTextureCoord.y');
     });
 });
+
+describe('Pow, Clamp, Remap', () => {
+    const run = (type: string, values: Graph['nodes'][string]['values'], extra: Graph['nodes'] = {}) =>
+        compileGlsl(
+            graph(
+                { n: node('n', type, values), out: node('out', 'output/surface'), ...extra },
+                [link('c1', 'n', 'result', 'out', 'color')],
+            ),
+            registry,
+            'three',
+        );
+
+    it('Pow растягивает степень на тип основания (vec3 тоже собирается)', () => {
+        const { program, errors } = compileGlsl(
+            graph(
+                { c: node('c', 'const/color', { value: [0.5, 0.2, 0.1] }), p: node('p', 'math/pow', { exponent: 2 }), out: node('out', 'output/surface') },
+                [link('l1', 'c', 'color', 'p', 'base'), link('l2', 'p', 'result', 'out', 'color')],
+            ),
+            registry,
+            'three',
+        );
+        expect(errors).toEqual([]);
+        expect(program!.body).toMatch(/vec3 n\d+_result = pow\(n\d+_color, n\d+_color \* 0\.0 \+ 2\.0\);/);
+    });
+
+    it('Clamp и Remap собираются с константами по умолчанию', () => {
+        const clamp = run('math/clamp', {});
+        expect(clamp.errors).toEqual([]);
+        expect(clamp.program!.body).toContain('clamp(');
+
+        const remap = run('math/remap', { inMin: 0, inMax: 10, outMin: 1, outMax: 2 });
+        expect(remap.errors).toEqual([]);
+        expect(remap.program!.body).toContain('abs(10.0 - 0.0) < 1e-6');
+    });
+});

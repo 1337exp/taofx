@@ -46,3 +46,26 @@ describe('createEffect', () => {
         expect(disposed).toBe(true);
     });
 });
+
+describe('Pow, Clamp, Remap в TSL', () => {
+    it('собираются в материал без ошибок', () => {
+        const file = {
+            nodes: {
+                c: { id: 'c', type: 'const/color', x: 0, y: 0, values: { value: [0.5, 0.2, 0.1] } },
+                p: { id: 'p', type: 'math/pow', x: 0, y: 0, values: { exponent: 2 } },
+                k: { id: 'k', type: 'math/clamp', x: 0, y: 0, values: { min: 0, max: 0.2 } },
+                r: { id: 'r', type: 'math/remap', x: 0, y: 0, values: { inMin: 0, inMax: 0.2, outMin: 0, outMax: 1 } },
+                out: { id: 'out', type: 'output/surface', x: 0, y: 0, values: {} },
+            },
+            connections: [
+                { id: '1', from: { node: 'c', pin: 'color' }, to: { node: 'p', pin: 'base' } },
+                { id: '2', from: { node: 'p', pin: 'result' }, to: { node: 'k', pin: 'x' } },
+                { id: '3', from: { node: 'k', pin: 'result' }, to: { node: 'r', pin: 'x' } },
+                { id: '4', from: { node: 'r', pin: 'result' }, to: { node: 'out', pin: 'color' } },
+            ],
+        };
+        const effect = createEffect(file as never);
+        expect(effect.errors).toEqual([]);
+        expect(effect.material.colorNode?.isNode).toBe(true);
+    });
+});
