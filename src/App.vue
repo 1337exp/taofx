@@ -1,5 +1,7 @@
 <script lang="ts" setup>
+import { TaoSplit } from '@1337exp/taoui';
 import { onMounted, onUnmounted } from 'vue';
+import { layout } from '@/editor/layout';
 import EditorCanvas from '@/editor/components/EditorCanvas.vue';
 import NodePalette from '@/editor/components/NodePalette.vue';
 import PreviewPanel from '@/editor/components/PreviewPanel.vue';
@@ -7,6 +9,11 @@ import Toolbar from '@/editor/components/Toolbar.vue';
 import { useEditor } from '@/editor/store';
 
 const editor = useEditor();
+
+// В свёрнутом состоянии сплит отдаёт нодам 0: размер запоминаем только у открытой панели
+function onSize(value: number) {
+    if (layout.nodesOpen) layout.nodesSize = value;
+}
 
 let stopAutosave: (() => void) | null = null;
 
@@ -21,14 +28,25 @@ onUnmounted(() => stopAutosave?.());
 </script>
 
 <template>
-    <div class="app">
-        <div class="editor">
-            <EditorCanvas />
-            <Toolbar />
-            <NodePalette />
-        </div>
-        <PreviewPanel />
-    </div>
+    <TaoSplit
+        class="app"
+        :model-value="layout.nodesOpen ? layout.nodesSize : 0"
+        :min="layout.nodesOpen ? 20 : 0"
+        :min-end="20"
+        :resizable="layout.nodesOpen"
+        @update:model-value="onSize"
+    >
+        <template #start>
+            <div class="editor">
+                <EditorCanvas />
+                <Toolbar />
+                <NodePalette />
+            </div>
+        </template>
+        <template #end>
+            <PreviewPanel />
+        </template>
+    </TaoSplit>
 </template>
 
 <style>
@@ -52,8 +70,6 @@ body {
 
 <style scoped>
 .app {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 38%);
     height: 100%;
 }
 

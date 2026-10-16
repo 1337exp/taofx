@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { TaoButton } from '@1337exp/taoui';
+import { TaoButton, TaoSlider } from '@1337exp/taoui';
 import { computed } from 'vue';
 import { useI18n } from '@/i18n';
 import { useEditor } from '../store';
@@ -12,8 +12,8 @@ const length = computed(() => (editor.system ? timelineLength(editor.system) : 1
 const marks = computed(() => (editor.system ? timelineMarks(editor.system, length.value) : []));
 
 /** Ручка двигает время: пока тянем, воспроизведение стоит, иначе она убегала бы из-под пальца. */
-function onScrub(e: Event) {
-    editor.playback.time = Number((e.target as HTMLInputElement).value);
+function onScrub(value: number | string) {
+    editor.playback.time = Number(value);
     editor.playback.playing = false;
 }
 </script>
@@ -26,7 +26,7 @@ function onScrub(e: Event) {
         <TaoButton size="small" variant="ghost" :aria-label="t('timeline.restart')" @click="editor.playback.time = 0">⏮</TaoButton>
         <div class="track">
             <span v-for="(m, i) in marks" :key="i" class="mark" :class="m.kind" :style="{ left: `${(m.time / length) * 100}%` }" />
-            <input type="range" min="0" :max="length" step="0.01" :value="editor.playback.time" :aria-label="t('timeline.scrub')" @input="onScrub" />
+            <TaoSlider variant="thin" size="small" :min="0" :max="length" :step="0.01" :model-value="editor.playback.time" :aria-label="t('timeline.scrub')" @update:model-value="onScrub" />
         </div>
         <span class="time">{{ editor.playback.time.toFixed(2) }} / {{ length.toFixed(1) }} {{ t('timeline.sec') }}</span>
     </div>
@@ -50,33 +50,33 @@ function onScrub(e: Event) {
     height: 22px;
 }
 
-.track input {
+.track :deep(.tao-slider) {
     position: absolute;
     inset: 0;
     width: 100%;
     margin: 0;
-    background: none;
 }
 
 .mark {
     position: absolute;
     top: 2px;
+    z-index: 1;
     width: 2px;
     height: 18px;
     pointer-events: none;
 }
 
 .mark.burst {
-    background: #ffb74d;
+    background: var(--tao-color-warning);
 }
 
 .mark.cycle {
-    background: #4a62b8;
+    background: var(--tao-color-info);
 }
 
 .time {
     min-width: 110px;
-    color: #8b929c;
+    color: var(--tao-color-text-muted);
     text-align: right;
     font-variant-numeric: tabular-nums;
 }

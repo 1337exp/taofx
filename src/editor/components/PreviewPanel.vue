@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n';
 import { createPreview, type Preview, type Shape } from '@/preview/preview';
 import { compile } from '@/tsl/compile';
 import { createParticles, type ParticleEffect } from '@/tsl/particles';
+import { layout } from '../layout';
 import { advance, timelineLength } from '../timeline';
 import { useEditor } from '../store';
 import ParticleInspector from './ParticleInspector.vue';
@@ -91,6 +92,7 @@ onBeforeUnmount(() => {
         <div class="stage">
             <canvas ref="canvas" />
             <div class="hud">
+                <TaoButton size="small" :variant="layout.nodesOpen ? 'primary' : 'secondary'" @click="layout.nodesOpen = !layout.nodesOpen">{{ t('view.nodes') }}</TaoButton>
                 <span class="muted">{{ backend }}</span>
                 <template v-if="!editor.system">
                     <TaoSegmented v-model="shape" size="small">
@@ -118,7 +120,6 @@ onBeforeUnmount(() => {
     flex-direction: column;
     min-width: 0;
     height: 100%;
-    border-left: 1px solid var(--tao-color-border, #222733);
     background: var(--tao-color-bg, #0b0d12);
 }
 
@@ -148,7 +149,7 @@ canvas {
 }
 
 .muted {
-    color: #7b8394;
+    color: var(--tao-color-text-muted);
     font-size: 12px;
 }
 
@@ -166,7 +167,7 @@ canvas {
 
 .ok {
     right: auto;
-    color: #7fd69a;
+    color: var(--tao-color-success);
 }
 
 .errors {

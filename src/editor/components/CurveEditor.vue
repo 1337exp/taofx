@@ -89,32 +89,32 @@ function onDouble(e: MouseEvent) {
     display: block;
     width: 100%;
     height: auto;
-    border: 1px solid #2c3347;
+    border: 1px solid var(--tao-color-border);
     border-radius: 4px;
-    background: #10131a;
+    background: var(--tao-color-surface-sunken);
     touch-action: none;
 }
 
 .axis {
-    stroke: #232a3b;
+    stroke: var(--tao-color-border);
     stroke-width: 1;
 }
 
 .line {
     fill: none;
-    stroke: #4fc3f7;
+    stroke: var(--tao-color-accent);
     stroke-width: 2;
     pointer-events: none;
 }
 
 .dot {
-    fill: #0b0d12;
-    stroke: #4fc3f7;
+    fill: var(--tao-color-surface-sunken);
+    stroke: var(--tao-color-accent);
     stroke-width: 2;
     cursor: grab;
 }
 
 .dot:hover {
-    fill: #4fc3f7;
+    fill: var(--tao-color-accent);
 }
 </style>

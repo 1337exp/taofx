@@ -28,6 +28,7 @@ const en: typeof ru = {
     },
     view: {
         fit: 'Fit view',
+        nodes: 'Nodes',
     },
     palette: {
         add: 'Add node',
@@ -50,7 +51,7 @@ const en: typeof ru = {
     },
     particles: {
         title: 'Particles',
-        start: 'New system',
+        start: 'Example: fountain',
         enable: 'Make it particles',
         disable: 'Plain material',
         system: 'System',

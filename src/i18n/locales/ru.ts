@@ -27,6 +27,7 @@ export default {
     },
     view: {
         fit: 'Показать всё',
+        nodes: 'Ноды',
     },
     palette: {
         add: 'Добавить ноду',
@@ -49,7 +50,7 @@ export default {
     },
     particles: {
         title: 'Частицы',
-        start: 'Новая система',
+        start: 'Пример: фонтан',
         enable: 'Сделать частицами',
         disable: 'Обычный материал',
         system: 'Система',

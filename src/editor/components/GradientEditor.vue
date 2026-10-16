@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { TaoButton } from '@1337exp/taoui';
+import { TaoButton, TaoSlider } from '@1337exp/taoui';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
@@ -65,8 +65,8 @@ function onColor(e: Event) {
     if (rgb) patchStop({ color: rgb.map(toLinear) as GradientStop['color'] });
 }
 
-function onAlpha(e: Event) {
-    patchStop({ alpha: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value))) });
+function onAlpha(value: number | string) {
+    patchStop({ alpha: Math.min(1, Math.max(0, Number(value))) });
 }
 </script>
 
@@ -88,7 +88,7 @@ function onAlpha(e: Event) {
         <div class="fields">
             <input type="color" :value="hex" :title="t('particles.stopColor')" @input="onColor" @change="emit('commit')" />
             <label>{{ t('particles.stopAlpha') }}
-                <input type="range" min="0" max="1" step="0.01" :value="stop.alpha" @input="onAlpha" @change="emit('commit')" />
+                <TaoSlider variant="thin" size="small" :min="0" :max="1" :step="0.01" :model-value="stop.alpha" @update:model-value="onAlpha" @change="emit('commit')" />
             </label>
             <TaoButton size="small" variant="ghost" :disabled="modelValue.length <= 1" :aria-label="t('particles.removeStop')" @click="emit('update:modelValue', removeStop(modelValue, selected)); selected = 0; emit('commit')">✕</TaoButton>
         </div>
@@ -99,7 +99,7 @@ function onAlpha(e: Event) {
 .bar {
     position: relative;
     height: 22px;
-    border: 1px solid #2c3347;
+    border: 1px solid var(--tao-color-border);
     border-radius: 4px;
     /* шахматка под полосой показывает прозрачность */
     background-color: #fff;
@@ -113,14 +113,14 @@ function onAlpha(e: Event) {
     width: 10px;
     height: 12px;
     margin-left: -5px;
-    border: 2px solid #8b929c;
+    border: 2px solid var(--tao-color-text-muted);
     border-radius: 2px;
-    background: #0b0d12;
+    background: var(--tao-color-surface-sunken);
     cursor: grab;
 }
 
 .stop.on {
-    border-color: #4fc3f7;
+    border-color: var(--tao-color-accent);
 }
 
 .fields {
@@ -138,7 +138,7 @@ function onAlpha(e: Event) {
     gap: 6px;
 }
 
-.fields input[type='range'] {
+.fields label :deep(.tao-slider) {
     flex: 1;
     min-width: 0;
 }
@@ -147,7 +147,7 @@ function onAlpha(e: Event) {
     width: 34px;
     height: 22px;
     padding: 0;
-    border: 1px solid #333;
+    border: 1px solid var(--tao-color-border);
     border-radius: 3px;
     background: none;
 }
