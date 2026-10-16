@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPoint, addStop, gradientCss, movePoint, moveStop, removePoint, removeStop, toPoints, valueBounds } from '@/editor/curveOps';
+import { addPoint, addStop, clampTo, gradientCss, movePoint, moveStop, niceStep, removePoint, removeStop, sameCurve, snapTo, ticks, toPoints, valueBounds } from '@/editor/curveOps';
 import type { GradientStop } from '@/particles/types';
 
 const pts = [{ t: 0, v: 0 }, { t: 0.5, v: 1 }, { t: 1, v: 0 }];
@@ -68,5 +68,40 @@ describe('градиент', () => {
         expect(css).toContain('linear-gradient(to right');
         expect(css).toContain('rgba(255, 0, 0, 1.000) 0.0%');
         expect(css).toContain('rgba(0, 0, 255, 0.000) 100.0%');
+    });
+});
+
+describe('сетка кривой', () => {
+    it('шаг подбирается из 1, 2, 5 и ложится на отрезок', () => {
+        expect(niceStep(1, 4)).toBe(0.2);
+        expect(niceStep(10, 4)).toBe(2);
+        expect(niceStep(0.3, 4)).toBe(0.1);
+        expect(niceStep(0)).toBe(1);
+    });
+
+    it('метки кратны шагу и включают края', () => {
+        expect(ticks(0, 1, 0.25)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+        expect(ticks(-0.1, 0.35, 0.1)).toEqual([-0.1, 0, 0.1, 0.2, 0.3]);
+        expect(ticks(0, 0.3, 0.1)).toEqual([0, 0.1, 0.2, 0.3]);
+    });
+
+    it('прижатие и зажим', () => {
+        expect(snapTo(0.123, 0.05)).toBe(0.1);
+        expect(snapTo(0.126, 0.05)).toBe(0.15);
+        expect(snapTo(0.123, 0)).toBe(0.123);
+        expect(clampTo(-1, 0)).toBe(0);
+        expect(clampTo(5, 0, 2)).toBe(2);
+        expect(clampTo(5)).toBe(5);
+    });
+
+    it('границы поля фиксируют вид, пустые оставляют автоматику', () => {
+        expect(valueBounds(pts, 0, 1)).toEqual({ min: 0, max: 1 });
+        expect(valueBounds([{ t: 0, v: 0 }, { t: 1, v: 3 }], 0)).toEqual({ min: 0, max: 3.3000000000000003 });
+        expect(valueBounds(pts, 2, 1)).toEqual({ min: 2, max: 3 });
+    });
+
+    it('сравнение кривых по значению', () => {
+        expect(sameCurve(pts, toPoints(pts))).toBe(true);
+        expect(sameCurve(1, [{ t: 0, v: 1 }, { t: 1, v: 1 }])).toBe(false);
     });
 });

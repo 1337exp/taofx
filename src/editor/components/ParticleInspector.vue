@@ -2,10 +2,13 @@
 import { TaoButton, TaoInputNumber, TaoSelect, TaoSwitch } from '@1337exp/taoui';
 import { computed } from 'vue';
 import { useI18n } from '@/i18n';
+import { defaultSystem } from '@/particles/serialize';
 import type { Range, Shape, SystemDef, Vec3 } from '@/particles/types';
 import { useEditor } from '../store';
 import CurveEditor from './CurveEditor.vue';
 import GradientEditor from './GradientEditor.vue';
+
+const DEFAULT_SIZE_CURVE = defaultSystem().particle.sizeOverLife;
 
 const editor = useEditor();
 const { t } = useI18n();
@@ -127,7 +130,7 @@ function setBoxSize(i: number, value: number | null) {
 
         <section>
             <h4>{{ t('particles.sizeOverLife') }}</h4>
-            <CurveEditor :model-value="editor.system.particle.sizeOverLife" @update:model-value="(v) => edit('sizeOverLife', (s) => (s.particle.sizeOverLife = v))" />
+            <CurveEditor :min="0" :default-value="DEFAULT_SIZE_CURVE" :model-value="editor.system.particle.sizeOverLife" @update:model-value="(v) => edit('sizeOverLife', (s) => (s.particle.sizeOverLife = v))" />
         </section>
 
         <section>

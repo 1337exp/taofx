@@ -33,15 +33,54 @@ export function removePoint(points: readonly CurvePoint[], i: number): CurvePoin
     return points.filter((_, k) => k !== i).map((p) => ({ ...p }));
 }
 
-/** Пределы значений для отрисовки: от 0 (или ниже минимума) до максимума с запасом, не уже чем 0…1. */
-export function valueBounds(points: readonly CurvePoint[]): { min: number; max: number } {
-    let min = 0;
-    let max = 1;
+/**
+ * Пределы значений для отрисовки: от 0 (или ниже минимума) до максимума с запасом, не уже чем 0…1.
+ * Заданные `min`/`max` (границы поля) фиксируют вид: график не плывёт и не выходит за допустимое.
+ */
+export function valueBounds(points: readonly CurvePoint[], min?: number, max?: number): { min: number; max: number } {
+    let lo = 0;
+    let hi = 1;
     for (const p of points) {
-        min = Math.min(min, p.v);
-        max = Math.max(max, p.v);
+        lo = Math.min(lo, p.v);
+        hi = Math.max(hi, p.v);
     }
-    return { min, max: max === min ? min + 1 : max * 1.1 };
+    const auto = { min: lo, max: hi === lo ? lo + 1 : hi * 1.1 };
+    const a = min ?? auto.min;
+    const b = max ?? auto.max;
+    return b > a ? { min: a, max: b } : { min: a, max: a + 1 };
+}
+
+/** Шаг сетки «1, 2, 5 × 10ⁿ», при котором на отрезке `span` выходит около `target` делений. */
+export function niceStep(span: number, target = 4): number {
+    if (!(span > 0)) return 1;
+    const raw = span / Math.max(1, target);
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / pow;
+    return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * pow;
+}
+
+/** Метки на отрезке lo…hi с шагом `step` (кратные шагу, без накопления ошибки float). */
+export function ticks(lo: number, hi: number, step: number): number[] {
+    const out: number[] = [];
+    const first = Math.ceil(lo / step - 1e-9);
+    const last = Math.floor(hi / step + 1e-9);
+    for (let i = first; i <= last; i++) out.push(Math.round(i * step * 1e6) / 1e6 + 0); // + 0 убирает «-0»
+    return out;
+}
+
+/** Прижимает x к ближайшему кратному `step`; шаг 0 или меньше оставляет значение как есть. */
+export function snapTo(x: number, step: number): number {
+    return step > 0 ? Math.round(Math.round(x / step) * step * 1e6) / 1e6 + 0 : x;
+}
+
+/** Зажимает v в границы кривой; незаданная граница не ограничивает. */
+export function clampTo(v: number, min?: number, max?: number): number {
+    return Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v));
+}
+
+/** Кривые совпадают по значению (число и плоская линия из двух точек считаются разными: так хранится в файле). */
+export function sameCurve(a: Curve, b: Curve): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
 }
 
 //--------------------------------------------------
