@@ -5,7 +5,7 @@ import '@1337exp/taoux/gradienteditor.css';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
-import { removeStop, roundAlpha, toLinear, toSrgb } from '../curveOps';
+import { patchStop, removeStop, toLinear, toSrgb } from '../curveOps';
 import { fromHex, toHex } from '../values';
 
 // Полоса с ручками это модуль taoux; здесь вокруг неё выбор цвета, прозрачность и кнопка на TaoUI.
@@ -19,17 +19,18 @@ const stop = computed(() => props.modelValue[Math.min(selected.value, props.mode
 // Цвет в градиенте линейный, а выбор цвета у браузера sRGB: переводим туда и обратно
 const hex = computed(() => toHex(stop.value.color.map(toSrgb)));
 
-function patchStop(patch: Partial<GradientStop>) {
-    emit('update:modelValue', props.modelValue.map((s, i) => (i === selected.value ? { ...s, ...patch } : s)));
+// patchStop из taoux обрезает непрозрачность и t до трёх знаков
+function patch(change: Partial<GradientStop>) {
+    emit('update:modelValue', patchStop(props.modelValue, selected.value, change));
 }
 
 function onColor(e: Event) {
     const rgb = fromHex((e.target as HTMLInputElement).value);
-    if (rgb) patchStop({ color: rgb.map(toLinear) as GradientStop['color'] });
+    if (rgb) patch({ color: rgb.map(toLinear) as GradientStop['color'] });
 }
 
 function onAlpha(value: number | string) {
-    patchStop({ alpha: roundAlpha(Number(value)) });
+    patch({ alpha: Number(value) });
 }
 
 function remove() {
