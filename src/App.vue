@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import { TaoSplit } from '@1337exp/taoui';
-import { onMounted, onUnmounted } from 'vue';
+import { defineAsyncComponent, onMounted, onUnmounted } from 'vue';
 import { layout } from '@/editor/layout';
 import EditorCanvas from '@/editor/components/EditorCanvas.vue';
 import NodePalette from '@/editor/components/NodePalette.vue';
-import PreviewPanel from '@/editor/components/PreviewPanel.vue';
 import Toolbar from '@/editor/components/Toolbar.vue';
 import { useEditor } from '@/editor/store';
+
+// Превью тянет за собой three (WebGPU) и компилятор TSL, это больше половины сборки: грузим после того, как редактор уже показан
+const PreviewPanel = defineAsyncComponent(() => import('@/editor/components/PreviewPanel.vue'));
 
 const editor = useEditor();
 

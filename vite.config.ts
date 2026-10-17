@@ -6,7 +6,8 @@ export default defineConfig({
     base: './',
     plugins: [vue()],
     // dist занят библиотекой (vite.lib.config.ts), приложение собирается рядом.
-    build: { outDir: 'dist-app' },
+    // Лимит предупреждения поднят: чанк превью это three (WebGPU), мельче он не станет, зато грузится отдельно и позже редактора.
+    build: { outDir: 'dist-app', chunkSizeWarningLimit: 1000 },
     // Предсборку зависимостей строим только по редактору: страницы из examples/ тянут `three` и `pixi.js` другими путями,
     // и тогда у редактора появляются две копии three (TSL ломается: «No stack defined for assign»).
     optimizeDeps: { entries: ['index.html'] },
