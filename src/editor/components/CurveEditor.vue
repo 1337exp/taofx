@@ -168,7 +168,7 @@ function reset() {
     gap: 6px;
 }
 
-.ease label {
+.ease > label {
     display: flex;
     flex-direction: column;
     gap: 2px;
