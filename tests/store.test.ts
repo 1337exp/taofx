@@ -178,6 +178,20 @@ describe('камера и файл', () => {
         }
     });
 
+    it('открытый файл показывается целиком, даже если вид в нём сохранён при другом окне', () => {
+        const editor = useEditor();
+        editor.viewport = { w: 1000, h: 600 };
+        const text = JSON.parse(editor.exportText());
+        text.view = { x: 99999, y: 99999, z: 0.1 }; // вид из файла: сцена за кадром
+        expect(editor.importText(JSON.stringify(text))).toBeNull();
+        for (const n of Object.values(editor.graph.nodes)) {
+            const { x, y, z } = editor.camera;
+            expect(n.x * z + x).toBeGreaterThanOrEqual(0);
+            expect((n.x + 210) * z + x).toBeLessThanOrEqual(1000);
+            expect(n.y * z + y).toBeGreaterThanOrEqual(0);
+        }
+    });
+
     it('сохранение и открытие файла возвращают граф; чужой файл отклоняется с уведомлением', () => {
         const editor = useEditor();
         const text = editor.exportText();

@@ -118,9 +118,24 @@ export const useEditor = defineStore('editor', () => {
         },
     });
 
-    const { notice, showNotice, canUndo, canRedo, commit, undo, redo, recorded, exportText, importText, restoreSaved, startAutosave, flushSave } = session;
+    const { notice, showNotice, canUndo, canRedo, commit, undo, redo, recorded, exportText, restoreSaved, startAutosave, flushSave } = session;
 
-    const particles = useParticleDoc({ system, commit, load: session.load });
+    // Открытый файл или демо показываем целиком: вид из файла сохранён при другом размере окна, а у файла без вида камера
+    // осталась бы от прежнего графа и сцена оказалась бы где-то за кадром.
+    function importText(text: string) {
+        const error = session.importText(text);
+        if (!error) fitView();
+        return error;
+    }
+
+    const particles = useParticleDoc({
+        system,
+        commit,
+        load: (doc, view) => {
+            session.load(doc, view);
+            fitView();
+        },
+    });
 
     //---]>
     // правки ноды
