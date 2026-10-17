@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { TaoButton, TaoInputNumber, TaoSwitch } from '@1337exp/taoui';
-import { TaoxCurveEditor } from '@1337exp/taoux/curveeditor';
+import { movePoint, removePoint, TaoxCurveEditor, valueBounds } from '@1337exp/taoux/curveeditor';
 import '@1337exp/taoux/curveeditor.css';
+import { clampTo, niceStep, roundTo } from '@1337exp/taoux/num';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { Curve, CurvePoint } from '@/particles/types';
-import { clampTo, movePoint, niceStep, removePoint, roundTo, sameCurve, toPoints, valueBounds } from '../curveOps';
+import { sameCurve, toPoints } from '../curveOps';
 
 // Поле графика (сетка, шаг, границы, автопрокрутка) это модуль taoux; здесь вокруг него поля точки и кнопки на TaoUI.
 const props = defineProps<{

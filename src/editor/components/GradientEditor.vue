@@ -1,11 +1,10 @@
 <script lang="ts" setup>
 import { TaoButton, TaoSlider } from '@1337exp/taoui';
-import { TaoxGradientEditor } from '@1337exp/taoux/gradienteditor';
+import { patchStop, removeStop, TaoxGradientEditor, toLinear, toSrgb } from '@1337exp/taoux/gradienteditor';
 import '@1337exp/taoux/gradienteditor.css';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
-import { patchStop, removeStop, toLinear, toSrgb } from '../curveOps';
 import { fromHex, toHex } from '../values';
 
 // Полоса с ручками это модуль taoux; здесь вокруг неё выбор цвета, прозрачность и кнопка на TaoUI.

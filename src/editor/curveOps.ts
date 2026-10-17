@@ -1,9 +1,7 @@
 import type { Curve, CurvePoint } from '@/particles/types';
 
-// Операции над точками кривой живут в taoux (их использует и сам виджет); здесь они же для остального редактора.
-// То же с градиентом: остановки и CSS-полоса из taoux.
-export { addStop, gradientCss, moveStop, patchStop, removeStop, roundAlpha, toLinear, toSrgb } from '@1337exp/taoux/gradienteditor';
-export { addPoint, clampTo, movePoint, niceStep, removePoint, roundTo, snapTo, ticks, valueBounds } from '@1337exp/taoux/curveeditor';
+// Кривая в файле частицы бывает числом (постоянная) или списком точек; операции над самими точками, градиентом и числами
+// живут в taoux (`curveeditor`, `gradienteditor`, `num`) и импортируются оттуда напрямую.
 
 /** Кривая как список точек: число превращается в плоскую линию от 0 до 1. */
 export function toPoints(curve: Curve): CurvePoint[] {
