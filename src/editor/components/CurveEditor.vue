@@ -64,10 +64,8 @@ const direction = computed<EaseDirection>(() => {
     return typeof e === 'string' ? (easeParts(e)?.direction ?? 'in-out') : 'in-out';
 });
 const kindOptions = computed(() => [
-    { value: 'linear', label: t('particles.easeLinear') },
-    { value: 'step', label: t('particles.easeStep') },
-    ...EASE_FAMILIES.map((f) => ({ value: f, label: t(`particles.ease_${f}`) })),
-    { value: 'bezier', label: t('particles.easeBezier') },
+    // названия функций не переводим: их знают по CSS и библиотекам анимации, по переводу не найдут
+    ...['linear', 'step', ...EASE_FAMILIES, 'bezier'].map((v) => ({ value: v, label: v })),
 ]);
 
 function applyEase(next: Parameters<typeof setEase>[2]) {
@@ -122,7 +120,7 @@ function reset() {
                 <TaoSelect size="small" :clearable="false" :options="kindOptions" :disabled="isLast" :model-value="kind" @update:model-value="setKind" />
             </label>
             <TaoSegmented v-if="!isLast && easeParts(typeof current.ease === 'string' ? current.ease : 'linear')" size="small" :model-value="direction" @update:model-value="setDirection">
-                <TaoSegmentedOption v-for="d in EASE_DIRECTIONS" :key="d" :value="d" :label="t(`particles.easeDir_${d}`)" />
+                <TaoSegmentedOption v-for="d in EASE_DIRECTIONS" :key="d" :value="d" :label="d" />
             </TaoSegmented>
         </div>
 
