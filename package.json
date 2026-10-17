@@ -17,8 +17,13 @@
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/1337exp/taofx#readme",
-  "repository": { "type": "git", "url": "git+https://github.com/1337exp/taofx.git" },
-  "bugs": { "url": "https://github.com/1337exp/taofx/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1337exp/taofx.git"
+  },
+  "bugs": {
+    "url": "https://github.com/1337exp/taofx/issues"
+  },
   "sideEffects": false,
   "files": [
     "dist"
@@ -66,7 +71,7 @@
     }
   },
   "devDependencies": {
-    "@1337exp/taoui": "file:../taoui",
+    "@1337exp/taoui": "^3.1.0",
     "@1337exp/taoux": "file:../taoux",
     "@types/node": "^26.6.4",
     "@types/three": "^0.186.0",
