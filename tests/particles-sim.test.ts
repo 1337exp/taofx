@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { evalCurve, evalGradient, sampleRange } from '@/particles/curve';
 import { hashInts, rand01 } from '@/particles/random';
 import { createBuffers, createSimulation } from '@/particles/sim';
+import { defaultRender } from '@/particles/serialize';
 import type { SystemDef } from '@/particles/types';
 
 const base: SystemDef = {
@@ -9,7 +10,9 @@ const base: SystemDef = {
     loop: false,
     seed: 7,
     maxParticles: 1000,
+    step: 1 / 60,
     blend: 'normal',
+    render: defaultRender(),
     emitter: { rate: 10, bursts: [], shape: { type: 'point' } },
     particle: {
         lifetime: 1,
@@ -19,6 +22,8 @@ const base: SystemDef = {
         spin: 0,
         gravity: [0, 0, 0],
         drag: 0,
+        forces: [],
+        colliders: [],
         sizeOverLife: 1,
         colorOverLife: [{ t: 0, color: [1, 1, 1], alpha: 1 }],
     },

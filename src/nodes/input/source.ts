@@ -8,4 +8,5 @@ export default defineNode({
     outputs: { color: { type: 'color' }, alpha: { type: 'float' } },
     needs: ['source'],
     glsl: () => ({ color: 'fxSrcRgb', alpha: 'fxSrc.a' }),
+    wgsl: () => ({ color: 'fxSrcRgb', alpha: 'fxSrc.a' }),
 });

@@ -6,4 +6,5 @@ export default defineNode({
     inputs: {},
     outputs: { t: { type: 'float' } },
     glsl: () => ({ t: 'uTime' }),
+    wgsl: () => ({ t: 'uTime' }),
 });

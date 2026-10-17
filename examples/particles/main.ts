@@ -41,7 +41,9 @@ glScene.add(glsl.object);
 
 // PIXI
 const app = new Application();
-await app.init({ width: S, height: S, preference: 'webgl', background: 0x05080d, antialias: true, autoStart: false });
+// ?pixi=webgpu: тот же файл частиц на PIXI с рендерером WebGPU (шейдер WGSL)
+const pixiPreference = new URLSearchParams(location.search).get('pixi') === 'webgpu' ? 'webgpu' : 'webgl';
+await app.init({ width: S, height: S, preference: pixiPreference, background: 0x05080d, antialias: true, autoStart: false });
 host('pixi').appendChild(app.canvas);
 const pixi = createPixiParticles(text, { scale: 90 });
 pixi.object.position.set(S / 2, S - 40);
@@ -55,10 +57,10 @@ function show(t: number): void {
     gl.render(glScene, glCamera);
     app.render();
     host('report').textContent = [
-        `время ${t.toFixed(2)} с · seed ${tsl.file.system.seed} · живых частиц: ${tsl.object.geometry.instanceCount}`,
-        `ошибки сборки: TSL ${tsl.errors.length}, GLSL ${glsl.errors.length}, PIXI ${pixi.errors.length}`,
+        `время ${t.toFixed(2)} с · seed ${tsl.file.system.seed} · живых частиц: ${tsl.stats.live}`,
+        `ошибки сборки: TSL ${tsl.errors.length}, GLSL ${glsl.errors.length}, PIXI ${pixi.errors.length}, WGSL ${pixi.gpuErrors.length} (PIXI рендерер: ${app.renderer.name})`,
     ].join('\n');
-    (host('report').dataset as DOMStringMap).count = String(tsl.object.geometry.instanceCount);
+    (host('report').dataset as DOMStringMap).count = String(tsl.stats.live);
 }
 
 // Картинки текстур догружаются сами: в статичной сцене перерисовываем кадр, когда они пришли (в игре кадры идут постоянно)

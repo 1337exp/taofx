@@ -11,4 +11,5 @@ export default defineNode({
     outputs: { uv: { type: 'vec2' } },
     // uv * tiling + offset: повтор и сдвиг (подайте время в offset, чтобы текстура ехала)
     glsl: ({ uv, tiling, offset }) => ({ uv: `${uv} * ${tiling} + ${offset}` }),
+    wgsl: ({ uv, tiling, offset }) => ({ uv: `${uv} * ${tiling} + ${offset}` }),
 });

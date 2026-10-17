@@ -2,7 +2,7 @@ import { bad, Invalid, isNum, isObj, isStr, parseView, readGraph, type LoadError
 import type { SavedView } from '../graph/types';
 import type { Registry } from '../graph/registry';
 import { isEase } from '@1337exp/taoux/ease';
-import type { CurvePoint, GradientStop, ParticleFile, Range, Shape, SystemDef, Vec3 } from './types';
+import type { Collider, CurvePoint, Force, GradientStop, ParticleFile, Range, RenderDef, Shape, SystemDef, Vec3 } from './types';
 
 /** Имя формата в файле частиц. */
 export const PARTICLES_FORMAT = 'taofx-particles';
@@ -17,6 +17,7 @@ export function defaultSystem(): SystemDef {
         loop: true,
         seed: 1,
         maxParticles: 1000,
+        step: 1 / 60,
         blend: 'normal',
         emitter: { rate: 40, bursts: [], shape: { type: 'cone', angle: 15, radius: 0.1 } },
         particle: {
@@ -27,9 +28,21 @@ export function defaultSystem(): SystemDef {
             spin: 0,
             gravity: [0, -3, 0],
             drag: 0,
+            forces: [],
+            colliders: [],
             sizeOverLife: 1,
             colorOverLife: [{ t: 0, color: [1, 1, 1], alpha: 1 }],
         },
+        render: defaultRender(),
+    };
+}
+
+export function defaultRender(): RenderDef {
+    return {
+        mode: 'billboard',
+        stretch: 0.1,
+        sort: true,
+        trail: { length: 0.5, segments: 12, widthOverLength: [{ t: 0, v: 1 }, { t: 1, v: 0 }] },
     };
 }
 
@@ -100,6 +113,69 @@ function shape(path: string, raw: unknown, fallback: Shape): Shape {
     }
 }
 
+const MAX_FORCES = 16;
+const MAX_SEGMENTS = 64;
+/** Точек шлейфа на все частицы сразу: в буферах это ≈ 70 байт на точку, так что предел держит ленту в сотнях мегабайт. */
+const MAX_RIBBON_POINTS = 1_000_000;
+
+function obj(path: string, raw: unknown): Record<string, unknown> {
+    if (!isObj(raw)) return bad(path);
+    return raw;
+}
+
+function force(path: string, raw: unknown): Force {
+    const f = obj(path, raw);
+    switch (f.type) {
+        case 'turbulence':
+            return { type: 'turbulence', strength: num(`${path}.strength`, f.strength, 2), scale: num(`${path}.scale`, f.scale, 1, 0.001, 1000), speed: num(`${path}.speed`, f.speed, 0.5) };
+        case 'attractor':
+            return { type: 'attractor', position: vec3(`${path}.position`, f.position, [0, 0, 0]), strength: num(`${path}.strength`, f.strength, 5), radius: num(`${path}.radius`, f.radius, 0, 0) };
+        case 'vortex':
+            return { type: 'vortex', position: vec3(`${path}.position`, f.position, [0, 0, 0]), axis: vec3(`${path}.axis`, f.axis, [0, 1, 0]), strength: num(`${path}.strength`, f.strength, 5), radius: num(`${path}.radius`, f.radius, 0, 0) };
+        case 'wind':
+            return { type: 'wind', velocity: vec3(`${path}.velocity`, f.velocity, [1, 0, 0]), strength: num(`${path}.strength`, f.strength, 1, 0) };
+        default:
+            return bad(`${path}.type`);
+    }
+}
+
+function collider(path: string, raw: unknown): Collider {
+    const c = obj(path, raw);
+    const common = { bounce: num(`${path}.bounce`, c.bounce, 0.4, 0, 1), friction: num(`${path}.friction`, c.friction, 0.1, 0, 1), kill: c.kill === true };
+    switch (c.type) {
+        case 'plane':
+            return { type: 'plane', normal: vec3(`${path}.normal`, c.normal, [0, 1, 0]), offset: num(`${path}.offset`, c.offset, 0), ...common };
+        case 'sphere':
+            return { type: 'sphere', center: vec3(`${path}.center`, c.center, [0, 0, 0]), radius: num(`${path}.radius`, c.radius, 1, 0), ...common };
+        default:
+            return bad(`${path}.type`);
+    }
+}
+
+function list<T>(path: string, raw: unknown, item: (path: string, raw: unknown) => T): T[] {
+    if (raw === undefined) return [];
+    if (!Array.isArray(raw) || raw.length > MAX_FORCES) return bad(path);
+    return raw.map((x, i) => item(`${path}[${i}]`, x));
+}
+
+function render(raw: unknown): RenderDef {
+    const d = defaultRender();
+    if (raw === undefined) return d;
+    const r = obj('system.render', raw);
+    if (r.mode !== undefined && r.mode !== 'billboard' && r.mode !== 'stretch' && r.mode !== 'ribbon') return bad('system.render.mode');
+    const t = r.trail === undefined ? {} : obj('system.render.trail', r.trail);
+    return {
+        mode: r.mode === 'stretch' || r.mode === 'ribbon' ? r.mode : 'billboard',
+        stretch: num('system.render.stretch', r.stretch, d.stretch, 0, 100),
+        sort: r.sort === undefined ? d.sort : r.sort === true,
+        trail: {
+            length: num('system.render.trail.length', t.length, d.trail.length, 0.01, 60),
+            segments: Math.trunc(num('system.render.trail.segments', t.segments, d.trail.segments, 2, MAX_SEGMENTS)),
+            widthOverLength: curve('system.render.trail.widthOverLength', t.widthOverLength, d.trail.widthOverLength),
+        },
+    };
+}
+
 function parseSystem(raw: unknown): SystemDef {
     const d = defaultSystem();
     if (raw === undefined) return d;
@@ -113,12 +189,14 @@ function parseSystem(raw: unknown): SystemDef {
     const bursts = em.bursts === undefined ? d.emitter.bursts : em.bursts;
     if (!Array.isArray(bursts)) return bad('system.emitter.bursts');
 
-    return {
+    const system: SystemDef = {
         duration: num('system.duration', raw.duration, d.duration, 0.01),
         loop: raw.loop === undefined ? d.loop : raw.loop === true,
         seed: Math.trunc(num('system.seed', raw.seed, d.seed)),
         maxParticles: Math.trunc(num('system.maxParticles', raw.maxParticles, d.maxParticles, 1, MAX_PARTICLES)),
+        step: num('system.step', raw.step, d.step, 1 / 240, 1 / 10),
         blend: raw.blend === 'add' ? 'add' : 'normal',
+        render: render(raw.render),
         emitter: {
             rate: num('system.emitter.rate', em.rate, d.emitter.rate, 0, MAX_RATE),
             bursts: bursts.map((b, i) => {
@@ -135,10 +213,16 @@ function parseSystem(raw: unknown): SystemDef {
             spin: range('system.particle.spin', pa.spin, d.particle.spin),
             gravity: vec3('system.particle.gravity', pa.gravity, d.particle.gravity),
             drag: num('system.particle.drag', pa.drag, d.particle.drag, 0),
+            forces: list('system.particle.forces', pa.forces, force),
+            colliders: list('system.particle.colliders', pa.colliders, collider),
             sizeOverLife: curve('system.particle.sizeOverLife', pa.sizeOverLife, d.particle.sizeOverLife),
             colorOverLife: gradient('system.particle.colorOverLife', pa.colorOverLife, d.particle.colorOverLife),
         },
     };
+
+    // лента держит буферы на каждую точку каждого шлейфа: без предела `maxParticles · segments` файл съест всю память
+    if (system.render.mode === 'ribbon' && system.maxParticles * (system.render.trail.segments + 1) > MAX_RIBBON_POINTS) return bad('system.render.trail.segments');
+    return system;
 }
 
 /**

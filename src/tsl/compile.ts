@@ -9,11 +9,11 @@ import type { TslBuild, TslParticleInputs, TslValue } from './types';
 
 export { OUTPUT_NODE };
 
-/** Что TSL-цель даёт нодам: нормаль поверхности есть, картинки-источника нет. */
-export const TSL_CAPABILITIES: readonly Capability[] = ['normal'];
+/** Что TSL-цель даёт нодам: нормаль поверхности, глубину и цвет сцены (их даёт WebGPURenderer); картинки-источника нет. */
+export const TSL_CAPABILITIES: readonly Capability[] = ['normal', 'depth', 'sceneColor'];
 
 /** Система частиц даёт данные частицы, но не нормаль. */
-export const TSL_PARTICLE_CAPABILITIES: readonly Capability[] = ['particle'];
+export const TSL_PARTICLE_CAPABILITIES: readonly Capability[] = ['particle', 'depth', 'sceneColor'];
 
 export interface CompileOptions {
     /** Сборка для системы частиц: данные частицы из инстансных атрибутов. */

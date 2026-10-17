@@ -1,4 +1,4 @@
-import { float, floor, max, mix, mx_noise_float, normalView, positionViewDirection, select, smoothstep, texture, uv, vec2 } from 'three/tsl';
+import { cameraFar, cameraNear, float, floor, linearDepth, max, mix, mx_noise_float, normalView, positionViewDirection, screenUV, select, smoothstep, texture, uv, vec2, viewportLinearDepth, viewportSharedTexture } from 'three/tsl';
 import type { TslBuild } from './types';
 
 // float растягивается на тип образца: у pow и clamp оба аргумента должны быть одного типа с основным
@@ -10,7 +10,7 @@ const like = (sample: any, scalar: any) => sample.mul(0).add(scalar);
  */
 export const tslBuilders: Record<string, TslBuild> = {
     'input/time': (_, { time }) => ({ t: time }),
-    'input/uv': () => ({ uv: uv() }),
+    'input/uv': () => ({ uv: uv(), u: uv().x, v: uv().y }),
     'input/radial': () => ({ r: uv().sub(0.5).length().mul(2) }),
     'input/fresnel': ({ power }) => ({ f: normalView.dot(positionViewDirection).saturate().oneMinus().pow(power) }),
 
@@ -36,6 +36,11 @@ export const tslBuilders: Record<string, TslBuild> = {
         return { uv: coords.add(vec2(col, r.sub(1).sub(row))).div(vec2(c, r)) };
     },
     'uv/transform': ({ uv: coords, tiling, offset }) => ({ uv: coords.mul(tiling).add(offset) }),
+
+    // Глубина сцены позади: линейная глубина буфера минус линейная глубина самого пикселя, переведённая в единицы сцены
+    'scene/depth-fade': ({ distance }) => ({ fade: viewportLinearDepth.sub(linearDepth()).mul(cameraFar.sub(cameraNear)).div(distance.max(1e-4)).saturate() }),
+    // Цвет буфера кадра (рабочее пространство, линейный): тот, что уже нарисован в этом кадре
+    'scene/scene-color': ({ offset }) => ({ color: viewportSharedTexture(screenUV.add(offset)).rgb }),
 
     'const/float': ({ value }) => ({ value }),
     'const/color': ({ value }) => ({ color: value }),

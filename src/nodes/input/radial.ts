@@ -7,4 +7,5 @@ export default defineNode({
     inputs: {},
     outputs: { r: { type: 'float' } },
     glsl: () => ({ r: 'length(vUv - 0.5) * 2.0' }),
+    wgsl: () => ({ r: 'length(vUv - vec2<f32>(0.5)) * 2.0' }),
 });

@@ -2,11 +2,13 @@
 import { TaoButton, TaoSegmented, TaoSegmentedOption } from '@1337exp/taoui';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
+import { measureSystem, type BudgetReport } from '@/particles/budget';
 import { createPreview, type Preview, type Shape } from '@/preview/preview';
 import { compile } from '@/tsl/compile';
 import { createParticles, type ParticleEffect } from '@/tsl/particles';
 import { layout } from '../layout';
 import { useEditor } from '../store';
+import BudgetPanel from './BudgetPanel.vue';
 import ParticleInspector from './ParticleInspector.vue';
 import Timeline from './Timeline.vue';
 
@@ -17,8 +19,24 @@ const canvas = ref<HTMLCanvasElement>();
 const backend = ref('…');
 const shape = ref<Shape>('sphere');
 const inspectorOpen = ref(true);
+const environment = ref(false);
+const overdraw = ref(false);
+const budgetOpen = ref(true);
+const budget = ref<BudgetReport | null>(null);
+const live = ref({ count: 0, simMs: 0 });
 let preview: Preview | null = null;
 let fx: ParticleEffect | null = null;
+
+/** Бюджет по всей длине системы для текущего вида камеры (считается без рендерера, на CPU). */
+function updateBudget() {
+    if (!preview || !editor.system) {
+        budget.value = null;
+        return;
+    }
+    // у больших систем меньше измерений: правка параметров не должна подвешивать редактор
+    const system = JSON.parse(JSON.stringify(editor.system)) as typeof editor.system;
+    budget.value = measureSystem(system, preview.getFillView(), { samples: system.maxParticles > 5000 ? 40 : 120 });
+}
 
 function dropParticles() {
     if (!fx) return;
@@ -41,9 +59,18 @@ function buildParticles() {
     dropParticles();
     if (!preview || !editor.system) return;
     const file = JSON.parse(JSON.stringify({ system: editor.system, material: editor.graph }));
-    fx = createParticles(file, { registry: editor.registry });
+    try {
+        fx = createParticles(file, { registry: editor.registry });
+    } catch (e) {
+        // параметры, которые рантайм не примет (например, слишком много точек шлейфа): показываем причину, редактор не падает
+        editor.setCompileErrors([{ kind: 'build', message: e instanceof Error ? e.message : String(e) }]);
+        budget.value = null;
+        return;
+    }
     editor.setCompileErrors([...fx.errors]);
     preview.setParticles(fx.object);
+    fx.setDebug(overdraw.value ? 'overdraw' : null);
+    updateBudget();
 
     // время ведёт модель воспроизведения из стора (taoux/playback): кадру остаётся показать частицы на этот момент
     const effect = fx;
@@ -65,6 +92,16 @@ watch(
     },
 );
 watch(shape, (s) => preview?.setShape(s));
+watch(environment, (on) => preview?.setEnvironment(on));
+watch(overdraw, (on) => {
+    fx?.setDebug(on ? 'overdraw' : null);
+    preview?.setOverdraw(on);
+});
+
+// Живые числа (частицы сейчас, мс симуляции) обновляем несколько раз в секунду: на каждый кадр Vue это ни к чему
+const poll = setInterval(() => {
+    if (fx) live.value = { count: fx.stats.live, simMs: fx.stats.simMs };
+}, 250);
 
 onMounted(async () => {
     preview = await createPreview(canvas.value!);
@@ -75,6 +112,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     clearTimeout(timer);
+    clearInterval(poll);
     dropParticles();
     preview?.dispose();
 });
@@ -94,8 +132,14 @@ onBeforeUnmount(() => {
                     </TaoSegmented>
                     <TaoButton size="small" variant="primary" @click="editor.enableParticles()">{{ t('particles.enable') }}</TaoButton>
                 </template>
-                <TaoButton v-else size="small" :variant="inspectorOpen ? 'primary' : 'secondary'" @click="inspectorOpen = !inspectorOpen">{{ t('particles.expand') }}</TaoButton>
+                <template v-else>
+                    <TaoButton size="small" :variant="budgetOpen ? 'primary' : 'secondary'" @click="budgetOpen = !budgetOpen">{{ t('budget.title') }}</TaoButton>
+                    <TaoButton size="small" :variant="overdraw ? 'primary' : 'secondary'" @click="overdraw = !overdraw">{{ t('budget.overdraw') }}</TaoButton>
+                    <TaoButton size="small" :variant="environment ? 'primary' : 'secondary'" @click="environment = !environment">{{ t('preview.environment') }}</TaoButton>
+                    <TaoButton size="small" :variant="inspectorOpen ? 'primary' : 'secondary'" @click="inspectorOpen = !inspectorOpen">{{ t('particles.expand') }}</TaoButton>
+                </template>
             </div>
+            <BudgetPanel v-if="editor.system && budgetOpen" :report="budget" :live="live.count" :sim-ms="live.simMs" :max-particles="editor.system.maxParticles" :heat="overdraw" />
             <ParticleInspector v-if="inspectorOpen" />
             <ul v-if="editor.compileErrors.length" class="status errors">
                 <li class="head">{{ t('preview.errors', [editor.compileErrors.length]) }}</li>

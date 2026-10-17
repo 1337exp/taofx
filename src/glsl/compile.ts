@@ -81,17 +81,18 @@ export function glslCast(expr: string, from: DataType, to: DataType): string {
 }
 
 /**
- * Собирает граф в GLSL. Порядок обхода и ошибки ведёт общий `walkGraph`; здесь только то, что относится к GLSL:
+ * Собирает граф в GLSL. `provides`: что рантайм добавляет к возможностям цели (например, `depth` и `sceneColor`, когда игра
+ * отдала текстуры сцены). Порядок обхода и ошибки ведёт общий `walkGraph`; здесь только то, что относится к GLSL:
  * значение ноды это выражение, каждый выход кладётся в переменную (потребителей может быть несколько, и выражения не раздуваются).
  */
-export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget): GlslResult {
+export function compileGlsl(graph: Graph, registry: Registry, target: GlslTarget, provides: readonly Capability[] = []): GlslResult {
     const helpers = new Map<string, string>();
     const samplers: GlslSampler[] = [];
     const statements: string[] = [];
     let counter = 0;
 
     const backend: WalkBackend<string> = {
-        capabilities: GLSL_CAPABILITIES[target],
+        capabilities: [...GLSL_CAPABILITIES[target], ...provides],
         targetName: `the ${target} target`,
         constant: glslConstant,
         uv: () => 'vUv',

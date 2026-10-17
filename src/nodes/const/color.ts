@@ -6,4 +6,5 @@ export default defineNode({
     inputs: { value: { type: 'color', default: [1, 1, 1] } },
     outputs: { color: { type: 'color' } },
     glsl: ({ value }) => ({ color: value! }),
+    wgsl: ({ value }) => ({ color: value! }),
 });

@@ -6,4 +6,5 @@ export default defineNode({
     inputs: { value: { type: 'float', default: 0 } },
     outputs: { value: { type: 'float' } },
     glsl: ({ value }) => ({ value: value! }),
+    wgsl: ({ value }) => ({ value: value! }),
 });

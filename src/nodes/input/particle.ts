@@ -11,4 +11,5 @@ export default defineNode({
     outputs: { age: { type: 'float' }, random: { type: 'float' }, tint: { type: 'color' }, alpha: { type: 'float' } },
     needs: ['particle'],
     glsl: () => ({ age: 'vAge', random: 'vRand', tint: 'vTint', alpha: 'vAlpha' }),
+    wgsl: () => ({ age: 'vAge', random: 'vRand', tint: 'vTint', alpha: 'vAlpha' }),
 });

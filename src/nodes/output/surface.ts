@@ -7,4 +7,5 @@ export default defineNode({
     inputs: { color: { type: 'color', default: [1, 1, 1] }, opacity: { type: 'float', default: 1 } },
     outputs: {},
     glsl: () => ({}),
+    wgsl: () => ({}),
 });

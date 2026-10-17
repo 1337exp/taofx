@@ -7,7 +7,9 @@ export const DEMO_PARTICLES: EditorDoc = {
         loop: true,
         seed: 11,
         maxParticles: 600,
+        step: 1 / 60,
         blend: 'add',
+        render: { mode: 'billboard', stretch: 0.1, sort: true, trail: { length: 0.5, segments: 12, widthOverLength: [{ t: 0, v: 1 }, { t: 1, v: 0 }] } },
         emitter: { rate: 90, bursts: [{ time: 0, count: 25 }], shape: { type: 'cone', angle: 14, radius: 0.12 } },
         particle: {
             lifetime: [0.9, 1.6],
@@ -17,6 +19,8 @@ export const DEMO_PARTICLES: EditorDoc = {
             spin: [-120, 120],
             gravity: [0, -3.2, 0],
             drag: 0.15,
+            forces: [],
+            colliders: [],
             sizeOverLife: [{ t: 0, v: 0.4 }, { t: 0.25, v: 1 }, { t: 1, v: 0.2 }],
             colorOverLife: [
                 { t: 0, color: [1, 0.9, 0.5], alpha: 1 },

@@ -6,6 +6,7 @@ import type { Registry } from '../graph/registry';
 import type { GraphError } from '../graph/resolve';
 import type { Graph } from '../graph/types';
 import { createDefaultRegistry } from '../nodes';
+import { bindScene, type SceneInputs } from './scene';
 import { textureUniforms } from './textures';
 
 export interface GlslEffectOptions {
@@ -13,6 +14,8 @@ export interface GlslEffectOptions {
     registry?: Registry;
     /** Свои текстуры по имени из графа вместо картинок из файла. */
     textures?: Record<string, Texture>;
+    /** Глубина и цвет сцены: без них ноды «Затухание по глубине» и «Цвет сцены» не соберутся (см. `createSceneCapture`). */
+    scene?: SceneInputs;
 }
 
 export interface GlslEffect {
@@ -42,10 +45,12 @@ export function createGlslEffect(source: string | Graph, options: GlslEffectOpti
     const registry = options.registry ?? createDefaultRegistry();
     const graph = loadGraph(source, registry);
 
-    const { program, errors } = compileGlsl(graph, registry, 'three');
+    const scene = bindScene(options.scene);
+    const { program, errors } = compileGlsl(graph, registry, 'three', scene.capabilities);
     const { vertexShader, fragmentShader } = buildThreeShader(program ?? ERROR_PROGRAM);
-    const uniforms = { [TIME_UNIFORM]: { value: 0 }, ...textureUniforms(program ?? ERROR_PROGRAM, graph, options.textures) };
+    const uniforms = { [TIME_UNIFORM]: { value: 0 }, ...scene.uniforms, ...textureUniforms(program ?? ERROR_PROGRAM, graph, options.textures) };
     const material = new ShaderMaterial({ vertexShader, fragmentShader, uniforms, transparent: true });
+    material.onBeforeRender = (_renderer, _scene, camera) => scene.update(camera);
 
     return {
         graph,

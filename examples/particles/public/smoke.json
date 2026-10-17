@@ -1,0 +1,256 @@
+{
+  "format": "taofx-particles",
+  "version": 1,
+  "system": {
+    "duration": 4,
+    "loop": true,
+    "seed": 8,
+    "maxParticles": 120,
+    "blend": "normal",
+    "render": {
+      "mode": "billboard",
+      "sort": true
+    },
+    "emitter": {
+      "rate": 16,
+      "bursts": [],
+      "shape": {
+        "type": "circle",
+        "radius": 0.6
+      }
+    },
+    "particle": {
+      "lifetime": [
+        2.5,
+        3.5
+      ],
+      "speed": [
+        0.3,
+        0.6
+      ],
+      "size": [
+        0.9,
+        1.4
+      ],
+      "rotation": [
+        0,
+        360
+      ],
+      "spin": [
+        -20,
+        20
+      ],
+      "gravity": [
+        0,
+        0.35,
+        0
+      ],
+      "drag": 0.4,
+      "forces": [
+        {
+          "type": "turbulence",
+          "strength": 1.2,
+          "scale": 0.7,
+          "speed": 0.3
+        }
+      ],
+      "sizeOverLife": [
+        {
+          "t": 0,
+          "v": 0.5
+        },
+        {
+          "t": 1,
+          "v": 1.5
+        }
+      ],
+      "colorOverLife": [
+        {
+          "t": 0,
+          "color": [
+            0.75,
+            0.78,
+            0.85
+          ],
+          "alpha": 0
+        },
+        {
+          "t": 0.2,
+          "color": [
+            0.7,
+            0.72,
+            0.8
+          ],
+          "alpha": 0.55
+        },
+        {
+          "t": 1,
+          "color": [
+            0.45,
+            0.47,
+            0.55
+          ],
+          "alpha": 0
+        }
+      ]
+    }
+  },
+  "material": {
+    "nodes": {
+      "p": {
+        "id": "p",
+        "type": "input/particle",
+        "x": 0,
+        "y": 0,
+        "values": {}
+      },
+      "r": {
+        "id": "r",
+        "type": "input/radial",
+        "x": 0,
+        "y": 140,
+        "values": {}
+      },
+      "soft": {
+        "id": "soft",
+        "type": "math/smoothstep",
+        "x": 200,
+        "y": 140,
+        "values": {
+          "low": 0.1,
+          "high": 1
+        }
+      },
+      "disc": {
+        "id": "disc",
+        "type": "math/mix",
+        "x": 400,
+        "y": 140,
+        "values": {
+          "a": 1,
+          "b": 0
+        }
+      },
+      "fade": {
+        "id": "fade",
+        "type": "scene/depth-fade",
+        "x": 400,
+        "y": 300,
+        "values": {
+          "distance": 0.7
+        }
+      },
+      "a1": {
+        "id": "a1",
+        "type": "math/multiply",
+        "x": 600,
+        "y": 120,
+        "values": {}
+      },
+      "a2": {
+        "id": "a2",
+        "type": "math/multiply",
+        "x": 800,
+        "y": 160,
+        "values": {}
+      },
+      "out": {
+        "id": "out",
+        "type": "output/surface",
+        "x": 1000,
+        "y": 80,
+        "values": {}
+      }
+    },
+    "connections": [
+      {
+        "id": "d1",
+        "from": {
+          "node": "r",
+          "pin": "r"
+        },
+        "to": {
+          "node": "soft",
+          "pin": "x"
+        }
+      },
+      {
+        "id": "d2",
+        "from": {
+          "node": "soft",
+          "pin": "result"
+        },
+        "to": {
+          "node": "disc",
+          "pin": "t"
+        }
+      },
+      {
+        "id": "s1",
+        "from": {
+          "node": "disc",
+          "pin": "result"
+        },
+        "to": {
+          "node": "a1",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "s2",
+        "from": {
+          "node": "p",
+          "pin": "alpha"
+        },
+        "to": {
+          "node": "a1",
+          "pin": "b"
+        }
+      },
+      {
+        "id": "s3",
+        "from": {
+          "node": "a1",
+          "pin": "result"
+        },
+        "to": {
+          "node": "a2",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "s4",
+        "from": {
+          "node": "fade",
+          "pin": "fade"
+        },
+        "to": {
+          "node": "a2",
+          "pin": "b"
+        }
+      },
+      {
+        "id": "s5",
+        "from": {
+          "node": "p",
+          "pin": "tint"
+        },
+        "to": {
+          "node": "out",
+          "pin": "color"
+        }
+      },
+      {
+        "id": "s6",
+        "from": {
+          "node": "a2",
+          "pin": "result"
+        },
+        "to": {
+          "node": "out",
+          "pin": "opacity"
+        }
+      }
+    ]
+  }
+}

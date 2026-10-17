@@ -2,13 +2,15 @@
 import { TaoButton, TaoInputNumber, TaoSelect, TaoSwitch } from '@1337exp/taoui';
 import { computed } from 'vue';
 import { useI18n } from '@/i18n';
-import { defaultSystem } from '@/particles/serialize';
-import type { Range, Shape, SystemDef, Vec3 } from '@/particles/types';
+import { defaultRender, defaultSystem } from '@/particles/serialize';
+import type { Range, RenderMode, Shape, SystemDef, Vec3 } from '@/particles/types';
 import { useEditor } from '../store';
 import CurveEditor from './CurveEditor.vue';
+import ForceList from './ForceList.vue';
 import GradientEditor from './GradientEditor.vue';
 
 const DEFAULT_SIZE_CURVE = defaultSystem().particle.sizeOverLife;
+const DEFAULT_TRAIL_WIDTH = defaultRender().trail.widthOverLength;
 
 const editor = useEditor();
 const { t } = useI18n();
@@ -35,6 +37,11 @@ const shapes = computed(() => [
     { value: 'circle', label: t('particles.shapeCircle') },
     { value: 'cone', label: t('particles.shapeCone') },
     { value: 'box', label: t('particles.shapeBox') },
+]);
+const modes = computed(() => [
+    { value: 'billboard', label: t('particles.modeBillboard') },
+    { value: 'stretch', label: t('particles.modeStretch') },
+    { value: 'ribbon', label: t('particles.modeRibbon') },
 ]);
 const blends = computed(() => [
     { value: 'normal', label: t('particles.blendNormal') },
@@ -80,6 +87,7 @@ function setBoxSize(i: number, value: number | null) {
             <div class="row"><TaoSwitch size="small" :label="t('particles.loop')" :model-value="editor.system.loop" @update:model-value="(v) => edit('loop', (s) => (s.loop = v))" /></div>
             <div class="row"><span>{{ t('particles.seed') }}</span><TaoInputNumber size="small" :step="1" :model-value="editor.system.seed" @update:model-value="(v) => edit('seed', (s) => (s.seed = Math.trunc(num(v))))" /></div>
             <div class="row"><span>{{ t('particles.maxParticles') }}</span><TaoInputNumber size="small" :min="1" :max="100000" :step="50" :model-value="editor.system.maxParticles" @update:model-value="(v) => edit('max', (s) => (s.maxParticles = Math.min(100000, Math.max(1, Math.trunc(num(v))))))" /></div>
+            <div class="row"><span>{{ t('particles.step') }}</span><TaoInputNumber size="small" :min="10" :max="240" :step="10" :model-value="Math.round(1 / editor.system.step)" @update:model-value="(v) => edit('step', (s) => (s.step = 1 / Math.min(240, Math.max(10, Math.round(num(v) || 60)))))" /></div>
             <div class="row"><span>{{ t('particles.blend') }}</span><TaoSelect size="small" :clearable="false" :model-value="editor.system.blend" :options="blends" @update:model-value="(v) => edit('blend', (s) => (s.blend = v === 'add' ? 'add' : 'normal'))" /></div>
         </section>
 
@@ -113,6 +121,17 @@ function setBoxSize(i: number, value: number | null) {
         </section>
 
         <section>
+            <h4>{{ t('particles.render') }}</h4>
+            <div class="row"><span>{{ t('particles.mode') }}</span><TaoSelect size="small" :clearable="false" :model-value="editor.system.render.mode" :options="modes" @update:model-value="(v) => edit('mode', (s) => (s.render.mode = v as RenderMode))" /></div>
+            <div v-if="editor.system.render.mode === 'stretch'" class="row"><span>{{ t('particles.stretch') }}</span><TaoInputNumber size="small" :min="0" :step="0.02" :model-value="editor.system.render.stretch" @update:model-value="(v) => edit('stretch', (s) => (s.render.stretch = Math.max(0, num(v))))" /></div>
+            <template v-if="editor.system.render.mode === 'ribbon'">
+                <div class="row"><span>{{ t('particles.trailLength') }}</span><TaoInputNumber size="small" :min="0.05" :step="0.05" :model-value="editor.system.render.trail.length" @update:model-value="(v) => edit('trailLength', (s) => (s.render.trail.length = Math.max(0.05, num(v))))" /></div>
+                <div class="row"><span>{{ t('particles.trailSegments') }}</span><TaoInputNumber size="small" :min="2" :max="64" :step="1" :model-value="editor.system.render.trail.segments" @update:model-value="(v) => edit('trailSegments', (s) => (s.render.trail.segments = Math.min(64, Math.max(2, Math.trunc(num(v))))))" /></div>
+            </template>
+            <div v-if="editor.system.blend === 'normal'" class="row"><TaoSwitch size="small" :label="t('particles.sort')" :model-value="editor.system.render.sort" @update:model-value="(v) => edit('sort', (s) => (s.render.sort = v))" /></div>
+        </section>
+
+        <section>
             <h4>{{ t('particles.particle') }}</h4>
             <div v-for="key in RANGE_KEYS" :key="key" class="row">
                 <span>{{ t(`particles.${key}`) }}</span>
@@ -128,6 +147,8 @@ function setBoxSize(i: number, value: number | null) {
             <div class="row"><span>{{ t('particles.drag') }}</span><TaoInputNumber size="small" :min="0" :step="0.05" :model-value="editor.system.particle.drag" @update:model-value="(v) => edit('drag', (s) => (s.particle.drag = Math.max(0, num(v))))" /></div>
         </section>
 
+        <ForceList />
+
         <section>
             <h4>{{ t('particles.sizeOverLife') }}</h4>
             <CurveEditor :min="0" :default-value="DEFAULT_SIZE_CURVE" :model-value="editor.system.particle.sizeOverLife" @update:model-value="(v) => edit('sizeOverLife', (s) => (s.particle.sizeOverLife = v))" />
@@ -136,6 +157,11 @@ function setBoxSize(i: number, value: number | null) {
         <section>
             <h4>{{ t('particles.colorOverLife') }}</h4>
             <GradientEditor :model-value="editor.system.particle.colorOverLife" @update:model-value="(v) => edit('colorOverLife', (s) => (s.particle.colorOverLife = v))" />
+        </section>
+
+        <section v-if="editor.system.render.mode === 'ribbon'">
+            <h4>{{ t('particles.trailWidth') }}</h4>
+            <CurveEditor :min="0" :default-value="DEFAULT_TRAIL_WIDTH" :model-value="editor.system.render.trail.widthOverLength" @update:model-value="(v) => edit('trailWidth', (s) => (s.render.trail.widthOverLength = v))" />
         </section>
     </aside>
 </template>

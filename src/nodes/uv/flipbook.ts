@@ -26,4 +26,18 @@ export default defineNode({
         );
         return { uv: `fxFlipbook(${uv}, ${columns}, ${rows}, ${phase})` };
     },
+    wgsl: ({ uv, columns, rows, phase }, ctx) => {
+        ctx.helper(
+            'fxFlipbook',
+            `fn fxFlipbook(uv: vec2<f32>, columns: f32, rows: f32, phase: f32) -> vec2<f32> {
+    let c = max(floor(columns), 1.0);
+    let r = max(floor(rows), 1.0);
+    let frame = floor(clamp(phase, 0.0, 0.999999) * c * r);
+    let col = frame - c * floor(frame / c);
+    let row = floor(frame / c);
+    return (uv + vec2<f32>(col, r - 1.0 - row)) / vec2<f32>(c, r);
+}`,
+        );
+        return { uv: `fxFlipbook(${uv}, ${columns}, ${rows}, ${phase})` };
+    },
 });

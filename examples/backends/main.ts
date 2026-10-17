@@ -1,4 +1,5 @@
-// Один файл эффекта в трёх бэкендах: three с TSL (WebGPURenderer), three с GLSL (WebGLRenderer), PIXI с GLSL-фильтром.
+// Один файл эффекта в четырёх бэкендах: three с TSL (WebGPURenderer), three с GLSL (WebGLRenderer), PIXI с GLSL-фильтром (WebGL)
+// и PIXI с WGSL-фильтром (WebGPU).
 // Кадры считаются в буферы, сравниваются числом и показываются на странице. Ожидание: TSL и GLSL совпадают до погрешности
 // float, PIXI до 8 бит (он пишет в 8-битный sRGB).
 import { compileGlsl, createDefaultRegistry, parseEffect, type Graph } from '@1337exp/taofx';
@@ -127,11 +128,21 @@ function readGl(scene: Scene): Float32Array {
 const app = new Application();
 await app.init({ width: W, height: W, preference: 'webgl', backgroundAlpha: 0, antialias: false, resolution: 1, autoDensity: false, autoStart: false });
 
-function readPixi(sprite: Sprite): Uint8ClampedArray {
-    app.stage.removeChildren();
-    app.stage.addChild(sprite);
-    app.renderer.render(app.stage);
-    const { pixels } = app.renderer.extract.pixels({ target: app.stage, frame: new Rectangle(0, 0, W, W) });
+// PIXI на WebGPU: тот же фильтр, но программа WGSL. Если WebGPU у PIXI не поднялся, сравнение с ним пропускается.
+const appGpu = new Application();
+let pixiGpuOk = true;
+try {
+    await appGpu.init({ width: W, height: W, preference: 'webgpu', backgroundAlpha: 0, antialias: false, resolution: 1, autoDensity: false, autoStart: false });
+    pixiGpuOk = appGpu.renderer.name === 'webgpu';
+} catch {
+    pixiGpuOk = false;
+}
+
+function readPixi(target: Application, sprite: Sprite): Uint8ClampedArray {
+    target.stage.removeChildren();
+    target.stage.addChild(sprite);
+    target.renderer.render(target.stage);
+    const { pixels } = target.renderer.extract.pixels({ target: target.stage, frame: new Rectangle(0, 0, W, W) });
     return new Uint8ClampedArray(pixels);
 }
 
@@ -159,6 +170,7 @@ interface CaseResult {
     title: string;
     tslVsGlsl: Stats;
     tslVsPixi?: Stats;
+    tslVsPixiGpu?: Stats;
     errors: string;
 }
 
@@ -190,11 +202,21 @@ async function runCase(c: Case, t: number, host: HTMLElement): Promise<CaseResul
         const sprite = new Sprite(Texture.WHITE);
         sprite.width = sprite.height = W;
         sprite.filters = [pixi.filter];
-        const pixiBytes = readPixi(sprite);
+        const pixiBytes = readPixi(app, sprite);
         show(row, 'PIXI · GLSL-фильтр · WebGL', pixiBytes);
         show(row, 'разница TSL и PIXI ×16', diffImage(tslBytes, pixiBytes));
         result.tslVsPixi = diffStats(tslBytes, pixiBytes);
-        result.errors += `, PIXI ${pixi.errors.length}`;
+        result.errors += `, PIXI ${pixi.errors.length}, WGSL ${pixi.gpuErrors.length}`;
+
+        if (pixiGpuOk) {
+            const spriteGpu = new Sprite(Texture.WHITE);
+            spriteGpu.width = spriteGpu.height = W;
+            spriteGpu.filters = [pixi.filter];
+            const gpuBytes = readPixi(appGpu, spriteGpu);
+            show(row, 'PIXI · WGSL-фильтр · WebGPU', gpuBytes);
+            show(row, 'разница TSL и PIXI WebGPU ×16', diffImage(tslBytes, gpuBytes));
+            result.tslVsPixiGpu = diffStats(tslBytes, gpuBytes);
+        }
         pixi.dispose();
     }
 
@@ -223,12 +245,13 @@ async function run(t: number): Promise<void> {
     for (const c of CASES) results.push(await runCase(c, t, host));
 
     const report = [
-        `время эффекта: ${t.toFixed(2)} с, кадр ${W}x${W}, бэкенд three: ${gpuBackend}`,
+        `время эффекта: ${t.toFixed(2)} с, кадр ${W}x${W}, бэкенд three: ${gpuBackend}, PIXI WebGPU: ${pixiGpuOk ? 'есть' : 'нет'}`,
         ...results.flatMap((r) => [
             '',
             r.title,
             `  TSL против GLSL: ${fmt(r.tslVsGlsl)}`,
-            ...(r.tslVsPixi ? [`  TSL против PIXI: ${fmt(r.tslVsPixi)}`] : []),
+            ...(r.tslVsPixi ? [`  TSL против PIXI (WebGL): ${fmt(r.tslVsPixi)}`] : []),
+            ...(r.tslVsPixiGpu ? [`  TSL против PIXI (WebGPU, WGSL): ${fmt(r.tslVsPixiGpu)}`] : []),
             `  ошибки сборки: ${r.errors}`,
         ]),
         '',
@@ -236,7 +259,7 @@ async function run(t: number): Promise<void> {
     ].join('\n');
     const el = document.getElementById('report')!;
     el.textContent = report;
-    el.dataset.result = JSON.stringify({ backend: gpuBackend, bottomUpGpu, results });
+    el.dataset.result = JSON.stringify({ backend: gpuBackend, bottomUpGpu, pixiGpuOk, results });
 }
 
 const slider = document.getElementById('time') as HTMLInputElement;

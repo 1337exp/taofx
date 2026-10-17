@@ -6,4 +6,5 @@ export default defineNode({
     inputs: { a: { type: 'gen', default: 1 }, b: { type: 'gen', default: 1 } },
     outputs: { result: { type: 'gen' } },
     glsl: ({ a, b }) => ({ result: `(${a} * ${b})` }),
+    wgsl: ({ a, b }) => ({ result: `(${a} * ${b})` }),
 });

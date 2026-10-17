@@ -8,4 +8,5 @@ export default defineNode({
     // pow в GLSL требует одинаковых типов: float-степень растягиваем на тип основания
     // Отрицательное основание даёт неопределённый результат, как и у самого pow: ограничивайте его заранее (Clamp)
     glsl: ({ base, exponent }) => ({ result: `pow(${base}, ${base} * 0.0 + ${exponent})` }),
+    wgsl: ({ base, exponent }) => ({ result: `pow(${base}, ${base} * 0.0 + ${exponent})` }),
 });

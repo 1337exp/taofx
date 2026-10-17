@@ -118,7 +118,7 @@ describe('findCompatiblePin', () => {
     it('от входа ищет выход, который в него влезает', () => {
         expect(findCompatiblePin({ type: 'float', dir: 'in' }, def('noise/perlin'))).toBe('n');
         expect(findCompatiblePin({ type: 'color', dir: 'in' }, def('const/color'))).toBe('color');
-        expect(findCompatiblePin({ type: 'float', dir: 'in' }, def('input/uv'))).toBeNull(); // vec2 в float нельзя
+        expect(findCompatiblePin({ type: 'float', dir: 'in' }, def('uv/transform'))).toBeNull(); // vec2 в float нельзя
         expect(findCompatiblePin({ type: 'gen', dir: 'in' }, def('input/uv'))).toBe('uv'); // в gen влезает что угодно
         expect(findCompatiblePin({ type: 'float', dir: 'in' }, def('output/surface'))).toBeNull(); // выходов нет
     });

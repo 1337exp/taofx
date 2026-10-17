@@ -1,0 +1,341 @@
+{
+  "format": "taofx-particles",
+  "version": 1,
+  "system": {
+    "duration": 3,
+    "loop": true,
+    "seed": 5,
+    "maxParticles": 40,
+    "blend": "normal",
+    "render": {
+      "mode": "billboard",
+      "sort": true
+    },
+    "emitter": {
+      "rate": 8,
+      "bursts": [],
+      "shape": {
+        "type": "circle",
+        "radius": 0.5
+      }
+    },
+    "particle": {
+      "lifetime": [
+        2,
+        3
+      ],
+      "speed": [
+        0.4,
+        0.8
+      ],
+      "size": [
+        1.2,
+        1.8
+      ],
+      "gravity": [
+        0,
+        0.6,
+        0
+      ],
+      "drag": 0.3,
+      "sizeOverLife": [
+        {
+          "t": 0,
+          "v": 0.6
+        },
+        {
+          "t": 1,
+          "v": 1.2
+        }
+      ],
+      "colorOverLife": [
+        {
+          "t": 0,
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "alpha": 0
+        },
+        {
+          "t": 0.25,
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "alpha": 1
+        },
+        {
+          "t": 1,
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "alpha": 0
+        }
+      ]
+    }
+  },
+  "material": {
+    "nodes": {
+      "p": {
+        "id": "p",
+        "type": "input/particle",
+        "x": 0,
+        "y": 0,
+        "values": {}
+      },
+      "r": {
+        "id": "r",
+        "type": "input/radial",
+        "x": 0,
+        "y": 140,
+        "values": {}
+      },
+      "soft": {
+        "id": "soft",
+        "type": "math/smoothstep",
+        "x": 200,
+        "y": 140,
+        "values": {
+          "low": 0.1,
+          "high": 1
+        }
+      },
+      "disc": {
+        "id": "disc",
+        "type": "math/mix",
+        "x": 400,
+        "y": 140,
+        "values": {
+          "a": 1,
+          "b": 0
+        }
+      },
+      "uv": {
+        "id": "uv",
+        "type": "input/uv",
+        "x": 0,
+        "y": 340,
+        "values": {}
+      },
+      "t": {
+        "id": "t",
+        "type": "input/time",
+        "x": 0,
+        "y": 440,
+        "values": {}
+      },
+      "scaleUv": {
+        "id": "scaleUv",
+        "type": "math/multiply",
+        "x": 200,
+        "y": 340,
+        "values": {
+          "b": 4
+        }
+      },
+      "slow": {
+        "id": "slow",
+        "type": "math/multiply",
+        "x": 200,
+        "y": 440,
+        "values": {
+          "b": 0.7
+        }
+      },
+      "moving": {
+        "id": "moving",
+        "type": "math/add",
+        "x": 400,
+        "y": 380,
+        "values": {}
+      },
+      "noise": {
+        "id": "noise",
+        "type": "noise/perlin",
+        "x": 600,
+        "y": 380,
+        "values": {}
+      },
+      "strength": {
+        "id": "strength",
+        "type": "math/multiply",
+        "x": 800,
+        "y": 380,
+        "values": {
+          "b": 0.04
+        }
+      },
+      "behind": {
+        "id": "behind",
+        "type": "scene/scene-color",
+        "x": 1000,
+        "y": 380,
+        "values": {}
+      },
+      "a1": {
+        "id": "a1",
+        "type": "math/multiply",
+        "x": 600,
+        "y": 120,
+        "values": {}
+      },
+      "out": {
+        "id": "out",
+        "type": "output/surface",
+        "x": 1200,
+        "y": 80,
+        "values": {}
+      }
+    },
+    "connections": [
+      {
+        "id": "d1",
+        "from": {
+          "node": "r",
+          "pin": "r"
+        },
+        "to": {
+          "node": "soft",
+          "pin": "x"
+        }
+      },
+      {
+        "id": "d2",
+        "from": {
+          "node": "soft",
+          "pin": "result"
+        },
+        "to": {
+          "node": "disc",
+          "pin": "t"
+        }
+      },
+      {
+        "id": "h1",
+        "from": {
+          "node": "uv",
+          "pin": "uv"
+        },
+        "to": {
+          "node": "scaleUv",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "h2",
+        "from": {
+          "node": "t",
+          "pin": "t"
+        },
+        "to": {
+          "node": "slow",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "h3",
+        "from": {
+          "node": "scaleUv",
+          "pin": "result"
+        },
+        "to": {
+          "node": "moving",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "h4",
+        "from": {
+          "node": "slow",
+          "pin": "result"
+        },
+        "to": {
+          "node": "moving",
+          "pin": "b"
+        }
+      },
+      {
+        "id": "h5",
+        "from": {
+          "node": "moving",
+          "pin": "result"
+        },
+        "to": {
+          "node": "noise",
+          "pin": "p"
+        }
+      },
+      {
+        "id": "h6",
+        "from": {
+          "node": "noise",
+          "pin": "n"
+        },
+        "to": {
+          "node": "strength",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "h7",
+        "from": {
+          "node": "strength",
+          "pin": "result"
+        },
+        "to": {
+          "node": "behind",
+          "pin": "offset"
+        }
+      },
+      {
+        "id": "h8",
+        "from": {
+          "node": "disc",
+          "pin": "result"
+        },
+        "to": {
+          "node": "a1",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "h9",
+        "from": {
+          "node": "p",
+          "pin": "alpha"
+        },
+        "to": {
+          "node": "a1",
+          "pin": "b"
+        }
+      },
+      {
+        "id": "h10",
+        "from": {
+          "node": "behind",
+          "pin": "color"
+        },
+        "to": {
+          "node": "out",
+          "pin": "color"
+        }
+      },
+      {
+        "id": "h11",
+        "from": {
+          "node": "a1",
+          "pin": "result"
+        },
+        "to": {
+          "node": "out",
+          "pin": "opacity"
+        }
+      }
+    ]
+  }
+}

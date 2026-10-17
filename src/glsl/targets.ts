@@ -18,10 +18,12 @@ export function buildThreeShader(program: GlslProgram): ThreeShaderSource {
 varying vec2 vUv;
 varying vec3 vNormalView;
 varying vec3 vViewDir;
+varying float vViewDepth;
 void main() {
     vUv = uv;
     vNormalView = normalize(normalMatrix * normal);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vViewDepth = -mv.z;
     // как в TSL: у ортографической камеры направление взгляда постоянное (0, 0, 1), а не к точке
     vViewDir = projectionMatrix[3][3] == 1.0 ? vec3(0.0, 0.0, 1.0) : normalize(-mv.xyz);
     gl_Position = projectionMatrix * mv;
@@ -30,6 +32,7 @@ void main() {
 varying vec2 vUv;
 varying vec3 vNormalView;
 varying vec3 vViewDir;
+varying float vViewDepth;
 uniform float ${TIME_UNIFORM};
 ${program.uniforms}
 ${program.helpers}

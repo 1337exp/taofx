@@ -16,4 +16,7 @@ export default defineNode({
     glsl: ({ x, inMin, inMax, outMin, outMax }) => ({
         result: `${outMin} + (${x} - ${inMin}) * ((${outMax} - ${outMin}) / (abs(${inMax} - ${inMin}) < 1e-6 ? 1e-6 : (${inMax} - ${inMin})))`,
     }),
+    wgsl: ({ x, inMin, inMax, outMin, outMax }) => ({
+        result: `${outMin} + (${x} - ${inMin}) * ((${outMax} - ${outMin}) / select(${inMax} - ${inMin}, 1e-6, abs(${inMax} - ${inMin}) < 1e-6))`,
+    }),
 });

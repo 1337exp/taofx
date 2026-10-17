@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Рантайм уходит в игры без редактора и без выбора рендерера за них, поэтому:
- *   - ядро (graph, nodes, glsl) не знает ни про Vue, ни про three, ни про PIXI: им можно пользоваться без рендерера;
+ *   - ядро (graph, nodes, glsl, wgsl, particles) не знает ни про Vue, ни про three, ни про PIXI: им можно пользоваться без рендерера;
  *   - у каждого рендерера свой модуль и своя зависимость (tsl: three/tsl и three/webgpu, three: three, pixi: pixi.js),
  *     и они не лезут друг в друга;
  *   - внутри пакета только относительные импорты (иначе алиас `@/` попадёт в .d.ts и сломает типы у потребителя);
@@ -27,7 +27,7 @@ interface Zone {
 const IDS = /^@1337exp\/taoux\/(ids|ease)$/;
 
 const ZONES: Record<string, Zone> = {
-    core: { dirs: ['graph', 'nodes', 'glsl', 'particles'], external: [IDS], uses: [] },
+    core: { dirs: ['graph', 'nodes', 'glsl', 'wgsl', 'particles'], external: [IDS], uses: [] },
     tsl: { dirs: ['tsl'], external: [/^three\/(tsl|webgpu)$/], uses: ['core'] },
     three: { dirs: ['three'], external: [/^three$/], uses: ['core'] },
     pixi: { dirs: ['pixi'], external: [/^pixi\.js$/], uses: ['core'] },

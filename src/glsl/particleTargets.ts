@@ -1,3 +1,4 @@
+import type { RenderMode } from '../particles/types';
 import type { GlslProgram } from './compile';
 import { TIME_UNIFORM } from './targets';
 
@@ -6,44 +7,18 @@ export interface ParticleShaderSource {
     fragmentShader: string;
 }
 
-/**
- * Каркас для частиц в three.js (`ShaderMaterial` на `InstancedBufferGeometry`): квадрат на каждую частицу, повёрнутый
- * лицом к камере. Данные частицы приходят инстансными атрибутами и уходят в фрагментный шейдер варьингами, откуда их читает нода «Частица».
- */
-export function buildThreeParticleShader(program: GlslProgram): ParticleShaderSource {
-    return {
-        vertexShader: /* glsl */ `
-attribute vec3 aPos;
-attribute float aSize;
-attribute float aRot;
-attribute float aAge;
-attribute float aRand;
-attribute vec3 aTint;
-attribute float aAlpha;
+/** Имя uniform вытягивания (режим `stretch`). */
+export const STRETCH_UNIFORM = 'uStretch';
+
+const THREE_VARYINGS = /* glsl */ `
 varying vec2 vUv;
 varying float vAge;
 varying float vRand;
 varying vec3 vTint;
 varying float vAlpha;
-void main() {
-    vUv = uv;
-    vAge = aAge;
-    vRand = aRand;
-    vTint = aTint;
-    vAlpha = aAlpha;
-    float c = cos(aRot);
-    float s = sin(aRot);
-    vec2 offset = vec2(position.x * c - position.y * s, position.x * s + position.y * c) * aSize;
-    vec4 mv = modelViewMatrix * vec4(aPos, 1.0);
-    mv.xy += offset;
-    gl_Position = projectionMatrix * mv;
-}`,
-        fragmentShader: /* glsl */ `
-varying vec2 vUv;
-varying float vAge;
-varying float vRand;
-varying vec3 vTint;
-varying float vAlpha;
+varying float vViewDepth;`;
+
+const THREE_FRAGMENT = (program: GlslProgram) => /* glsl */ `${THREE_VARYINGS}
 uniform float ${TIME_UNIFORM};
 ${program.uniforms}
 ${program.helpers}
@@ -51,7 +26,88 @@ void main() {
     ${program.body}
     gl_FragColor = vec4(fxColor, fxOpacity);
     #include <colorspace_fragment>
+}`;
+
+/**
+ * Каркас для частиц в three.js (`ShaderMaterial`). Данные частицы приходят атрибутами и уходят в фрагментный шейдер
+ * варьингами, откуда их читает нода «Частица». Режимы:
+ *   billboard  инстансы: квадрат на частицу, повёрнутый лицом к камере;
+ *   stretch    инстансы: квадрат вытянут вдоль скорости на экране (длина = размер · (1 + stretch · скорость));
+ *   ribbon     обычный меш: вершины уже в пространстве системы (их собирает CPU), атрибуты на вершину.
+ */
+export function buildThreeParticleShader(program: GlslProgram, mode: RenderMode = 'billboard'): ParticleShaderSource {
+    const fragmentShader = THREE_FRAGMENT(program);
+    const common = /* glsl */ `
+attribute float aAge;
+attribute float aRand;
+attribute vec3 aTint;
+attribute float aAlpha;${THREE_VARYINGS}
+void fxPass() {
+    vUv = uv;
+    vAge = aAge;
+    vRand = aRand;
+    vTint = aTint;
+    vAlpha = aAlpha;
+}`;
+
+    if (mode === 'ribbon') {
+        // вершины пары совпадают: лицом к камере полосу разворачиваем здесь (касательная × направление на камеру) и разносим на ширину
+        return {
+            vertexShader: /* glsl */ `${common}
+attribute vec3 aTan;
+attribute float aWidth;
+void main() {
+    fxPass();
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vec3 eye = projectionMatrix[3][3] == 1.0 ? vec3(0.0, 0.0, -1.0) : mv.xyz;
+    vec3 side = cross(mat3(modelViewMatrix) * aTan, eye);
+    float sl = length(side);
+    side = sl > 1e-9 ? side / sl : vec3(1.0, 0.0, 0.0);
+    mv.xyz += side * (aWidth * (uv.y * 2.0 - 1.0));
+    vViewDepth = -mv.z;
+    gl_Position = projectionMatrix * mv;
 }`,
+            fragmentShader,
+        };
+    }
+    if (mode === 'stretch') {
+        return {
+            vertexShader: /* glsl */ `${common}
+attribute vec3 aPos;
+attribute vec3 aVel;
+attribute float aSize;
+uniform float ${STRETCH_UNIFORM};
+void main() {
+    fxPass();
+    vec4 mv = modelViewMatrix * vec4(aPos, 1.0);
+    vec3 vv = mat3(modelViewMatrix) * aVel;
+    float l2 = length(vv.xy);
+    vec2 d = l2 > 1e-5 ? vv.xy / l2 : vec2(1.0, 0.0);
+    vec2 perp = vec2(-d.y, d.x);
+    float len = aSize * (1.0 + ${STRETCH_UNIFORM} * length(vv));
+    mv.xy += d * (position.x * len) + perp * (position.y * aSize);
+    vViewDepth = -mv.z;
+    gl_Position = projectionMatrix * mv;
+}`,
+            fragmentShader,
+        };
+    }
+    return {
+        vertexShader: /* glsl */ `${common}
+attribute vec3 aPos;
+attribute float aSize;
+attribute float aRot;
+void main() {
+    fxPass();
+    float c = cos(aRot);
+    float s = sin(aRot);
+    vec2 offset = vec2(position.x * c - position.y * s, position.x * s + position.y * c) * aSize;
+    vec4 mv = modelViewMatrix * vec4(aPos, 1.0);
+    mv.xy += offset;
+    vViewDepth = -mv.z;
+    gl_Position = projectionMatrix * mv;
+}`,
+        fragmentShader,
     };
 }
 

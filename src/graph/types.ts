@@ -31,10 +31,11 @@ export interface OutputPin {
 export const OUTPUT_NODE = 'output/surface';
 
 /**
- * Что нода требует от цели вывода: нормаль поверхности (материал на 3D-меше) или исходную картинку
- * (фильтр PIXI). Компилятор не соберёт граф для цели, которая этого не даёт, и скажет, какая нода мешает.
+ * Что нода требует от цели вывода: нормаль поверхности (материал на 3D-меше), исходную картинку (фильтр PIXI),
+ * данные частицы, глубину сцены (`depth`: мягкие частицы) или цвет сцены позади (`sceneColor`: рефракция, искажение).
+ * Компилятор не соберёт граф для цели, которая этого не даёт, и скажет, какая нода мешает.
  */
-export type Capability = 'normal' | 'source' | 'particle';
+export type Capability = 'normal' | 'source' | 'particle' | 'depth' | 'sceneColor';
 
 /** Настройка ноды, которую не выразить пином: сейчас это только выбор текстуры из `Graph.textures`. */
 export interface ParamDef {
@@ -60,6 +61,15 @@ export interface GlslContext {
 /** Строит выражения GLSL выходов из выражений входов (входы уже приведены к своим типам). */
 export type GlslEmit = (inputs: Record<string, string>, ctx: GlslContext) => Record<string, string>;
 
+/** Что получает WGSL-эмиттер ноды вместе с выражениями входов (то же, что `GlslContext`, но для WGSL: выражения vec4<f32> и т.д.). */
+export type WgslContext = GlslContext;
+
+/**
+ * Строит выражения WGSL выходов из выражений входов (входы уже приведены к своим типам). WGSL строже GLSL: нет неявных
+ * приведений типов и тернарного оператора (`select(ложь, истина, условие)`), у `smoothstep`, `clamp` все аргументы одного типа.
+ */
+export type WgslEmit = (inputs: Record<string, string>, ctx: WgslContext) => Record<string, string>;
+
 /**
  * Определение ноды: чистые данные, без привязки к рендереру. Как нода превращается в код, решает бэкенд:
  * GLSL-эмиттер лежит здесь (`glsl`), TSL-реализация в `tsl/builders.ts`.
@@ -75,6 +85,8 @@ export interface NodeDef {
     params?: Record<string, ParamDef>;
     /** Реализация для GLSL (three с WebGLRenderer, PIXI на WebGL). */
     glsl?: GlslEmit;
+    /** Реализация для WGSL (PIXI на WebGPU). Без неё граф с этой нодой не соберётся для PIXI WebGPU. */
+    wgsl?: WgslEmit;
 }
 
 //--------------------------------------------------

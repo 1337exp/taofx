@@ -13,4 +13,9 @@ export default defineNode({
         if (!name) throw new Error('No texture selected');
         return { color: `${ctx.texture(name, uv ?? 'vUv')}.rgb`, alpha: `${ctx.texture(name, uv ?? 'vUv')}.a` };
     },
+    wgsl: ({ uv }, ctx) => {
+        const name = ctx.params.texture;
+        if (!name) throw new Error('No texture selected');
+        return { color: `${ctx.texture(name, uv ?? 'vUv')}.rgb`, alpha: `${ctx.texture(name, uv ?? 'vUv')}.a` };
+    },
 });

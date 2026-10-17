@@ -80,6 +80,75 @@ describe('формат частиц', () => {
     });
 });
 
+describe('силы, препятствия и вывод', () => {
+    const sys = (system: unknown) => parseParticles(file({ system }), registry);
+
+    it('по умолчанию сил и препятствий нет, вывод это билборд с сортировкой, шаг 1/60', () => {
+        const d = defaultSystem();
+        expect(d.particle.forces).toEqual([]);
+        expect(d.particle.colliders).toEqual([]);
+        expect(d.render).toMatchObject({ mode: 'billboard', sort: true });
+        expect(d.step).toBeCloseTo(1 / 60, 9);
+        const r = sys({});
+        expect(r.ok && r.file.system.particle.forces).toEqual([]);
+    });
+
+    it('силы и препятствия проходят круг без потерь, пропущенные поля берутся по умолчанию', () => {
+        const system = {
+            ...defaultSystem(),
+            step: 1 / 90,
+            render: { mode: 'ribbon' as const, stretch: 0.3, sort: false, trail: { length: 0.8, segments: 20, widthOverLength: [{ t: 0, v: 1 }, { t: 1, v: 0 }] } },
+            particle: {
+                ...defaultSystem().particle,
+                forces: [
+                    { type: 'turbulence' as const, strength: 3, scale: 1.5, speed: 0.4 },
+                    { type: 'attractor' as const, position: [0, 2, 0] as [number, number, number], strength: 4, radius: 5 },
+                    { type: 'vortex' as const, position: [1, 0, 0] as [number, number, number], axis: [0, 1, 0] as [number, number, number], strength: 2, radius: 0 },
+                    { type: 'wind' as const, velocity: [1, 0, 0] as [number, number, number], strength: 0.5 },
+                ],
+                colliders: [
+                    { type: 'plane' as const, normal: [0, 1, 0] as [number, number, number], offset: -1, bounce: 0.5, friction: 0.2, kill: false },
+                    { type: 'sphere' as const, center: [0, 1, 0] as [number, number, number], radius: 0.7, bounce: 0.3, friction: 0, kill: true },
+                ],
+            },
+        };
+        const r = parseParticles(serializeParticles({ system, material }), registry);
+        expect(r.ok && r.file.system).toEqual(system);
+
+        const partial = sys({ particle: { forces: [{ type: 'turbulence' }], colliders: [{ type: 'plane' }] } });
+        expect(partial.ok && partial.file.system.particle.forces).toEqual([{ type: 'turbulence', strength: 2, scale: 1, speed: 0.5 }]);
+        expect(partial.ok && partial.file.system.particle.colliders).toEqual([{ type: 'plane', normal: [0, 1, 0], offset: 0, bounce: 0.4, friction: 0.1, kill: false }]);
+    });
+
+    it('строго проверяет силы, препятствия, вывод и шаг', () => {
+        const bad = (system: unknown) => sys(system).ok;
+        expect(bad({ particle: { forces: [{ type: 'gravityWell' }] } })).toBe(false);
+        expect(bad({ particle: { forces: [{ type: 'turbulence', scale: 0 }] } })).toBe(false);
+        expect(bad({ particle: { forces: [{ type: 'attractor', position: [1, 2] }] } })).toBe(false);
+        expect(bad({ particle: { forces: 'strong' } })).toBe(false);
+        expect(bad({ particle: { forces: Array.from({ length: 17 }, () => ({ type: 'wind' })) } })).toBe(false);
+        expect(bad({ particle: { colliders: [{ type: 'plane', bounce: 2 }] } })).toBe(false);
+        expect(bad({ particle: { colliders: [{ type: 'sphere', radius: -1 }] } })).toBe(false);
+        expect(bad({ render: { mode: 'volumetric' } })).toBe(false);
+        expect(bad({ render: { trail: { segments: 1 } } })).toBe(false);
+        expect(bad({ render: { trail: { segments: 500 } } })).toBe(false);
+        expect(bad({ render: { trail: { length: 0 } } })).toBe(false);
+        expect(bad({ maxParticles: 100000, render: { mode: 'ribbon', trail: { segments: 64 } } })).toBe(false); // 6,5 млн точек шлейфа
+        expect(bad({ maxParticles: 100000, render: { mode: 'billboard', trail: { segments: 64 } } })).toBe(true); // лента не включена: шлейфа нет
+        expect(bad({ step: 0 })).toBe(false);
+        expect(bad({ step: 1 })).toBe(false);
+        expect(bad({ step: 1 / 60 })).toBe(true);
+    });
+
+    it('старый файл без новых полей читается как раньше', () => {
+        const r = sys({ seed: 3, emitter: { rate: 20 }, particle: { gravity: [0, -2, 0], drag: 0.1 } });
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.file.system.particle.gravity).toEqual([0, -2, 0]);
+        expect(r.file.system.render.mode).toBe('billboard');
+    });
+});
+
 describe('переходы в точках кривой', () => {
     it('тип CurveEase совпадает с Ease из taoux (охрана от расхождения)', () => {
                 // присваивание в обе стороны не скомпилируется, если типы разойдутся
