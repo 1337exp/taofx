@@ -45,6 +45,7 @@ const labels = computed<CurveFieldLabels>(() => ({
         :default-value="defaults"
         :precision="precision"
         :step-t="STEP_T"
+        guides="lines"
         :labels="labels"
         @update:model-value="(v) => emit('update:modelValue', v)"
         @commit="emit('commit')"
