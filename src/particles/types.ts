@@ -9,9 +9,17 @@ export type Vec3 = [number, number, number];
 export type Range = number | [number, number];
 
 /** Точка кривой: t в 0…1 (доля жизни частицы), v значение. Между точками линейно. */
+/**
+ * Переход между точками кривой: имя (`linear`, `step`, `cubic-out`…) или Безье `[x1, y1, x2, y2]`. Зеркало типа `Ease`
+ * из taoux: пакет не зависит от taoux при установке, а совпадение типов охраняет тест `particles-format`.
+ */
+export type CurveEase = 'linear' | 'step' | `${'sine' | 'quad' | 'cubic' | 'quart' | 'expo' | 'back' | 'elastic' | 'bounce'}-${'in' | 'out' | 'in-out'}` | { bezier: readonly [number, number, number, number] };
+
 export interface CurvePoint {
     t: number;
     v: number;
+    /** Как идти от этой точки к следующей; без поля линейно. */
+    ease?: CurveEase;
 }
 
 /** Число (постоянное) или кривая по доле жизни. */

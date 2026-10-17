@@ -1,6 +1,7 @@
 import { bad, Invalid, isNum, isObj, isStr, parseView, readGraph, type LoadError } from '../graph/serialize';
 import type { SavedView } from '../graph/types';
 import type { Registry } from '../graph/registry';
+import { isEase } from '@1337exp/taoux/ease';
 import type { CurvePoint, GradientStop, ParticleFile, Range, Shape, SystemDef, Vec3 } from './types';
 
 /** Имя формата в файле частиц. */
@@ -66,7 +67,8 @@ function curve(path: string, raw: unknown, fallback: number | CurvePoint[]): num
     if (!Array.isArray(raw) || raw.length === 0) return bad(path);
     const points = raw.map((p, i): CurvePoint => {
         if (!isObj(p) || !isNum(p.t) || !isNum(p.v) || p.t < 0 || p.t > 1) return bad(`${path}[${i}]`);
-        return { t: p.t, v: p.v };
+        if (p.ease !== undefined && !isEase(p.ease)) return bad(`${path}[${i}].ease`);
+        return p.ease === undefined ? { t: p.t, v: p.v } : { t: p.t, v: p.v, ease: p.ease };
     });
     return points.sort((a, b) => a.t - b.t);
 }

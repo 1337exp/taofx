@@ -23,8 +23,8 @@ interface Zone {
     uses: string[];
 }
 
-/** @1337exp/taoux/ids вшивается в сборку (мелкий uid), больше пакет ни от чего не зависит. */
-const IDS = /^@1337exp\/taoux\/ids$/;
+/** @1337exp/taoux/ids (мелкий uid) и /ease (чистая математика переходов) вшиваются в сборку, больше пакет ни от чего не зависит. */
+const IDS = /^@1337exp\/taoux\/(ids|ease)$/;
 
 const ZONES: Record<string, Zone> = {
     core: { dirs: ['graph', 'nodes', 'glsl', 'particles'], external: [IDS], uses: [] },

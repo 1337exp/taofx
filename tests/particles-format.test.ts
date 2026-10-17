@@ -1,7 +1,9 @@
+import { DEFAULT_BEZIER, EASE_NAMES, isEase, type Ease } from '@1337exp/taoux/ease';
 import { describe, expect, it } from 'vitest';
 import { compile } from '@/tsl/compile';
 import { compileGlsl } from '@/lib';
 import type { Graph } from '@/graph/types';
+import type { CurveEase } from '@/particles/types';
 import { createDefaultRegistry } from '@/nodes';
 import { defaultSystem, parseParticles, PARTICLES_FORMAT, PARTICLES_VERSION, serializeParticles } from '@/particles/serialize';
 
@@ -75,6 +77,34 @@ describe('формат частиц', () => {
     it('точки кривой и градиента сортируются по t', () => {
         const r = parseParticles(file({ system: { particle: { sizeOverLife: [{ t: 1, v: 0 }, { t: 0, v: 1 }] } } }), registry);
         expect(r.ok && r.file.system.particle.sizeOverLife).toEqual([{ t: 0, v: 1 }, { t: 1, v: 0 }]);
+    });
+});
+
+describe('переходы в точках кривой', () => {
+    it('тип CurveEase совпадает с Ease из taoux (охрана от расхождения)', () => {
+                // присваивание в обе стороны не скомпилируется, если типы разойдутся
+        const all: CurveEase[] = [...EASE_NAMES, { bezier: DEFAULT_BEZIER }];
+        const back: Ease[] = all;
+        expect(back.every(isEase)).toBe(true);
+    });
+
+    const sized = (pts: unknown) => file({ system: { particle: { sizeOverLife: pts } } });
+
+    it('ease читается и проходит круг, старые файлы без него остаются линейными', () => {
+        const pts = [{ t: 0, v: 0, ease: 'cubic-out' }, { t: 0.5, v: 1, ease: { bezier: [0.2, 0.1, 0.3, 1.4] } }, { t: 1, v: 0 }];
+        const r = parseParticles(sized(pts), registry);
+        expect(r.ok && r.file.system.particle.sizeOverLife).toEqual(pts);
+        const back = parseParticles(serializeParticles(r.ok ? r.file : (null as never)), registry);
+        expect(back.ok && back.file.system.particle.sizeOverLife).toEqual(pts);
+
+        const old = parseParticles(sized([{ t: 0, v: 1 }, { t: 1, v: 0 }]), registry);
+        expect(old.ok && old.file.system.particle.sizeOverLife).toEqual([{ t: 0, v: 1 }, { t: 1, v: 0 }]);
+    });
+
+    it('неизвестный или битый переход отвергается', () => {
+        expect(code(sized([{ t: 0, v: 0, ease: 'wobble' }]))).toBe('invalidStructure');
+        expect(code(sized([{ t: 0, v: 0, ease: { bezier: [2, 0, 0, 1] } }]))).toBe('invalidStructure');
+        expect(code(sized([{ t: 0, v: 0, ease: 5 }]))).toBe('invalidStructure');
     });
 });
 

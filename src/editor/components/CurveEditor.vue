@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import { TaoButton, TaoInputNumber, TaoSwitch } from '@1337exp/taoui';
-import { movePoint, removePoint, TaoxCurveEditor, valueBounds } from '@1337exp/taoux/curveeditor';
+import { TaoButton, TaoInputNumber, TaoSegmented, TaoSegmentedOption, TaoSelect, TaoSwitch } from '@1337exp/taoui';
+import { movePoint, removePoint, setEase, TaoxCurveEditor, valueBounds } from '@1337exp/taoux/curveeditor';
 import '@1337exp/taoux/curveeditor.css';
+import { DEFAULT_BEZIER, EASE_DIRECTIONS, EASE_FAMILIES, easeName, easeParts, type EaseDirection, type EaseFamily } from '@1337exp/taoux/ease';
 import { clampTo, niceStep, roundTo } from '@1337exp/taoux/num';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
@@ -50,6 +51,43 @@ function setField(field: 't' | 'v', value: number | null) {
     emit('commit');
 }
 
+// Переход от выбранной точки к следующей: «вид» (линейно, ступенька, семейство или своя кривая) и направление
+const isLast = computed(() => selected.value >= points.value.length - 1);
+const kind = computed(() => {
+    const e = current.value.ease;
+    if (e === undefined || e === 'linear') return 'linear';
+    if (typeof e === 'object') return 'bezier';
+    return easeParts(e)?.family ?? e;
+});
+const direction = computed<EaseDirection>(() => {
+    const e = current.value.ease;
+    return typeof e === 'string' ? (easeParts(e)?.direction ?? 'in-out') : 'in-out';
+});
+const kindOptions = computed(() => [
+    { value: 'linear', label: t('particles.easeLinear') },
+    { value: 'step', label: t('particles.easeStep') },
+    ...EASE_FAMILIES.map((f) => ({ value: f, label: t(`particles.ease_${f}`) })),
+    { value: 'bezier', label: t('particles.easeBezier') },
+]);
+
+function applyEase(next: Parameters<typeof setEase>[2]) {
+    emit('update:modelValue', setEase(points.value, selected.value, next));
+    emit('commit');
+}
+
+function setKind(v: string | number | null) {
+    if (typeof v !== 'string') return;
+    if (v === 'linear' || v === 'step') applyEase(v);
+    else if (v === 'bezier') applyEase({ bezier: DEFAULT_BEZIER });
+    else applyEase(easeName(v as EaseFamily, direction.value));
+}
+
+function setDirection(v: unknown) {
+    const e = current.value.ease;
+    const parts = typeof e === 'string' ? easeParts(e) : null;
+    if (parts && typeof v === 'string' && (EASE_DIRECTIONS as readonly string[]).includes(v)) applyEase(easeName(parts.family, v as EaseDirection));
+}
+
 function reset() {
     if (props.defaultValue === undefined) return;
     selected.value = 0;
@@ -76,6 +114,16 @@ function reset() {
         <div class="fields">
             <label>{{ t('particles.pointTime') }}<TaoInputNumber size="small" :min="0" :max="1" :step="STEP_T" :precision="precision" :controls="false" :model-value="current.t" @update:model-value="(x) => setField('t', x)" /></label>
             <label>{{ t('particles.pointValue') }}<TaoInputNumber size="small" :min="min" :max="max" :step="stepV" :precision="precision" :controls="false" :model-value="current.v" @update:model-value="(x) => setField('v', x)" /></label>
+        </div>
+
+        <div class="ease">
+            <label>
+                {{ t('particles.ease') }}
+                <TaoSelect size="small" :clearable="false" :options="kindOptions" :disabled="isLast" :model-value="kind" @update:model-value="setKind" />
+            </label>
+            <TaoSegmented v-if="!isLast && easeParts(typeof current.ease === 'string' ? current.ease : 'linear')" size="small" :model-value="direction" @update:model-value="setDirection">
+                <TaoSegmentedOption v-for="d in EASE_DIRECTIONS" :key="d" :value="d" :label="t(`particles.easeDir_${d}`)" />
+            </TaoSegmented>
         </div>
 
         <div class="bar">
@@ -107,6 +155,20 @@ function reset() {
 }
 
 .fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--tao-color-text-muted);
+    font-size: 11px;
+}
+
+.ease {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ease label {
     display: flex;
     flex-direction: column;
     gap: 2px;

@@ -70,6 +70,14 @@ describe('кривые и градиенты', () => {
         expect(evalCurve(c, 2)).toBe(0);
     });
 
+    it('переход точки действует на участок до следующей', () => {
+        const c = [{ t: 0, v: 0, ease: 'quad-in' as const }, { t: 0.5, v: 1, ease: 'step' as const }, { t: 1, v: 0 }];
+        expect(evalCurve(c, 0.25)).toBeCloseTo(0.25); // quad-in на середине участка
+        expect(evalCurve(c, 0.75)).toBe(1); // step держит значение до конца участка
+        expect(evalCurve(c, 1)).toBe(0);
+        expect(evalCurve([{ t: 0, v: 0, ease: { bezier: [0.42, 0, 0.58, 1] } }, { t: 1, v: 1 }], 0.5)).toBeCloseTo(0.5, 3);
+    });
+
     it('градиент интерполирует цвет и альфу, вне краёв держит крайние', () => {
         const g = [{ t: 0.2, color: [1, 0, 0] as [number, number, number], alpha: 1 }, { t: 0.8, color: [0, 0, 1] as [number, number, number], alpha: 0 }];
         expect(evalGradient(g, 0)).toEqual([1, 0, 0, 1]);

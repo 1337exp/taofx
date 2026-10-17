@@ -1,3 +1,4 @@
+import { easeValue } from '@1337exp/taoux/ease';
 import type { Curve, GradientStop, Range } from './types';
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -10,7 +11,7 @@ export function sampleRange(range: Range, u: number): number {
 /** Наибольшее значение диапазона. */
 export const rangeMax = (range: Range): number => (typeof range === 'number' ? range : Math.max(range[0], range[1]));
 
-/** Значение кривой в точке t (0…1): вне крайних точек остаётся значением крайней, между ними линейно. */
+/** Значение кривой в точке t (0…1): вне крайних точек остаётся значением крайней, между ними по переходу первой из двух точек (без него линейно). */
 export function evalCurve(curve: Curve, t: number): number {
     if (typeof curve === 'number') return curve;
     const n = curve.length;
@@ -23,7 +24,7 @@ export function evalCurve(curve: Curve, t: number): number {
         if (x <= b.t) {
             const a = curve[i - 1]!;
             const span = b.t - a.t;
-            return span <= 0 ? b.v : a.v + ((b.v - a.v) * (x - a.t)) / span;
+            return span <= 0 ? b.v : a.v + (b.v - a.v) * easeValue(a.ease, (x - a.t) / span);
         }
     }
     return curve[n - 1]!.v;
