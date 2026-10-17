@@ -1,11 +1,10 @@
 <script lang="ts" setup>
-import { TaoButton, TaoSlider } from '@1337exp/taoui';
-import { patchStop, removeStop, TaoxGradientEditor, toLinear, toSrgb } from '@1337exp/taoux/gradienteditor';
+import { colorModel, TaoButton, TaoColorInput, TaoSlider } from '@1337exp/taoui';
+import { patchStop, removeStop, TaoxGradientEditor } from '@1337exp/taoux/gradienteditor';
 import '@1337exp/taoux/gradienteditor.css';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/i18n';
 import type { GradientStop } from '@/particles/types';
-import { fromHex, toHex } from '../values';
 
 // Полоса с ручками это модуль taoux; здесь вокруг неё выбор цвета, прозрачность и кнопка на TaoUI.
 const props = defineProps<{ modelValue: GradientStop[] }>();
@@ -15,18 +14,14 @@ const { t } = useI18n();
 const selected = ref(0);
 const stop = computed(() => props.modelValue[Math.min(selected.value, props.modelValue.length - 1)]!);
 
-// Цвет в градиенте линейный, а выбор цвета у браузера sRGB: переводим туда и обратно
-const hex = computed(() => toHex(stop.value.color.map(toSrgb)));
-
-// patchStop из taoux обрезает непрозрачность и t до трёх знаков
+// patchStop из taoux обрезает непрозрачность, t и цвет до разумного числа знаков
 function patch(change: Partial<GradientStop>) {
     emit('update:modelValue', patchStop(props.modelValue, selected.value, change));
 }
 
-function onColor(e: Event) {
-    const rgb = fromHex((e.target as HTMLInputElement).value);
-    if (rgb) patch({ color: rgb.map(toLinear) as GradientStop['color'] });
-}
+// Цвет в градиенте линейный (массив 0…1), а палитра говорит hex в sRGB: colorModel переводит туда и обратно
+const stopColor = computed({ get: () => stop.value.color as number[], set: (c) => patch({ color: c as GradientStop['color'] }) });
+const hex = colorModel(stopColor, { format: 'array', range: 1, space: 'linear' });
 
 function onAlpha(value: number | string) {
     patch({ alpha: Number(value) });
@@ -49,7 +44,7 @@ function remove() {
             @commit="emit('commit')"
         />
         <div class="fields">
-            <input type="color" :value="hex" :title="t('particles.stopColor')" @input="onColor" @change="emit('commit')" />
+            <TaoColorInput v-model="hex" size="small" :title="t('particles.stopColor')" @change="emit('commit')" />
             <label>{{ t('particles.stopAlpha') }}
                 <TaoSlider variant="thin" size="small" :min="0" :max="1" :step="0.01" :model-value="stop.alpha" @update:model-value="onAlpha" @change="emit('commit')" />
             </label>
@@ -84,12 +79,4 @@ function remove() {
     min-width: 0;
 }
 
-.fields input[type='color'] {
-    width: 34px;
-    height: 22px;
-    padding: 0;
-    border: 1px solid var(--tao-color-border);
-    border-radius: 3px;
-    background: none;
-}
 </style>

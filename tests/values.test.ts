@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromHex, parseNumber, partsOf, toHex, valueOfParts } from '@/editor/values';
+import { parseNumber, partsOf, valueOfParts } from '@/editor/values';
 
 describe('partsOf / valueOfParts', () => {
     it('число растягивается на все компоненты, недостающие компоненты нули', () => {
@@ -15,23 +15,6 @@ describe('partsOf / valueOfParts', () => {
         expect(valueOfParts('float', [3])).toBe(3);
         expect(valueOfParts('vec2', [1, 2, 3])).toEqual([1, 2]);
         expect(valueOfParts('color', [0, 1, 0])).toEqual([0, 1, 0]);
-    });
-});
-
-describe('цвет ↔ hex', () => {
-    it('круговой проход с точностью до 1/255', () => {
-        const rgb = fromHex('#ff8000')!;
-        expect(rgb[0]).toBe(1);
-        expect(rgb[1]).toBeCloseTo(0.5, 1);
-        expect(toHex(rgb)).toBe('#ff8000');
-    });
-
-    it('значения вне 0…1 обрезаются, не цвет возвращает null', () => {
-        expect(toHex([2, -1, 0.5])).toBe('#ff0080');
-        expect(toHex([])).toBe('#000000');
-        expect(fromHex('red')).toBeNull();
-        expect(fromHex('#fff')).toBeNull();
-        expect(fromHex('#GGGGGG')).toBeNull();
     });
 });
 

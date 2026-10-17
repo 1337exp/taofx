@@ -1,7 +1,8 @@
 <script lang="ts" setup>
+import { colorModel, TaoColorInput } from '@1337exp/taoui';
 import { computed } from 'vue';
 import type { Constant, DataType } from '@/graph/types';
-import { fromHex, parseNumber, partsOf, toHex, valueOfParts } from '../values';
+import { parseNumber, partsOf, valueOfParts } from '../values';
 
 const props = defineProps<{ type: DataType; modelValue: Constant | undefined }>();
 const emit = defineEmits<{ 'update:modelValue': [value: Constant] }>();
@@ -14,14 +15,13 @@ function onNumber(index: number, e: Event) {
     emit('update:modelValue', valueOfParts(props.type, next));
 }
 
-function onColor(e: Event) {
-    const rgb = fromHex((e.target as HTMLInputElement).value);
-    if (rgb) emit('update:modelValue', rgb);
-}
+// Цвет ноды это массив 0…1 (как есть, без управления цветом); палитра говорит hex
+const colorParts = computed({ get: () => parts.value, set: (c) => emit('update:modelValue', c) });
+const hex = colorModel(colorParts, { format: 'array', range: 1 });
 </script>
 
 <template>
-    <input v-if="type === 'color'" class="swatch" type="color" :value="toHex(parts)" @input="onColor" />
+    <TaoColorInput v-if="type === 'color'" v-model="hex" size="small" class="swatch" />
     <span v-else class="numbers">
         <input
             v-for="(part, i) in parts"
@@ -51,13 +51,4 @@ function onColor(e: Event) {
     font: inherit;
 }
 
-.swatch {
-    width: 34px;
-    height: 20px;
-    padding: 0;
-    border: 1px solid #333;
-    border-radius: 3px;
-    background: none;
-    cursor: pointer;
-}
 </style>
