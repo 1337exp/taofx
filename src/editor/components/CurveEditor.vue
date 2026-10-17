@@ -63,6 +63,8 @@ const direction = computed<EaseDirection>(() => {
     const e = current.value.ease;
     return typeof e === 'string' ? (easeParts(e)?.direction ?? 'in-out') : 'in-out';
 });
+// у linear, step и Безье направления нет: переключатель остаётся на месте неактивным, чтобы было видно, как это устроено
+const hasDirection = computed(() => !isLast.value && typeof current.value.ease === 'string' && easeParts(current.value.ease) !== null);
 const kindOptions = computed(() => [
     // названия функций не переводим: их знают по CSS и библиотекам анимации, по переводу не найдут
     ...['linear', 'step', ...EASE_FAMILIES, 'bezier'].map((v) => ({ value: v, label: v })),
@@ -119,7 +121,7 @@ function reset() {
                 {{ t('particles.ease') }}
                 <TaoSelect size="small" :clearable="false" :options="kindOptions" :disabled="isLast" :model-value="kind" @update:model-value="setKind" />
             </label>
-            <TaoSegmented v-if="!isLast && easeParts(typeof current.ease === 'string' ? current.ease : 'linear')" size="small" :model-value="direction" @update:model-value="setDirection">
+            <TaoSegmented size="small" :disabled="!hasDirection" :model-value="hasDirection ? direction : undefined" @update:model-value="setDirection">
                 <TaoSegmentedOption v-for="d in EASE_DIRECTIONS" :key="d" :value="d" :label="d" />
             </TaoSegmented>
         </div>
