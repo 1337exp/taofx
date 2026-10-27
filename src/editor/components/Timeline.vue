@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { TaoTimeline } from '@1337exp/taoui';
+import { TaoScrubber } from '@1337exp/taoui';
 import { computed } from 'vue';
 import { useI18n } from '@/i18n';
 import { useEditor } from '../store';
@@ -15,8 +15,8 @@ const marks = computed(() => (editor.system ? timelineMarks(editor.system, lengt
 
 <template>
     <div v-if="editor.system" class="timeline">
-        <!-- Время ведёт модель воспроизведения из стора (taoux/playback), таймлайн TaoUI только показывает и отдаёт действия -->
-        <TaoTimeline
+        <!-- Время ведёт модель воспроизведения из стора (taoux/playback), скруббер TaoUI только показывает и отдаёт действия -->
+        <TaoScrubber
             :model-value="editor.playback.time"
             :playing="editor.playback.playing"
             :length="length"
@@ -26,7 +26,7 @@ const marks = computed(() => (editor.system ? timelineMarks(editor.system, lengt
             @update:playing="editor.setPlaying"
         >
             <template #time="{ time }">{{ time.toFixed(2) }} / {{ length.toFixed(1) }} {{ t('timeline.sec') }}</template>
-        </TaoTimeline>
+        </TaoScrubber>
     </div>
 </template>
 
