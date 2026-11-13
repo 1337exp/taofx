@@ -75,9 +75,21 @@ export const FLIPBOOK: DocKind = {
         for (const [i, f] of body.frames.entries()) {
             if (!isObj(f) || !Number.isFinite(f.x) || !Number.isFinite(f.y) || !isPositive(f.w) || !isPositive(f.h)) return `frames.${i}`;
         }
+        // необязательные настройки: как найдены кадры и какой фон запекается в альфу (тело читает `flipbook/model.ts`, здесь только форма)
+        if (body.detect !== undefined && !checkDetect(body.detect)) return 'detect';
+        if (body.key !== undefined && body.key !== null && !checkKey(body.key)) return 'key';
         return null;
     },
 };
+
+const isRgb = (v: unknown) => Array.isArray(v) && v.length === 3 && v.every((c) => Number.isInteger(c) && c >= 0 && c <= 255);
+const isWhole = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
+function checkDetect(d: unknown): boolean {
+    if (!isObj(d)) return false;
+    if (d.mode === 'grid') return isWhole(d.cols) && isWhole(d.rows);
+    return d.mode === 'auto' && isRgb(d.color) && isFiniteNumber(d.tolerance) && isFiniteNumber(d.gap) && isFiniteNumber(d.minSize);
+}
+const checkKey = (k: unknown): boolean => isObj(k) && isRgb(k.color) && isFiniteNumber(k.low) && isFiniteNumber(k.high);
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 

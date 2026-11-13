@@ -223,6 +223,22 @@ describe('проект: документы и ссылки', () => {
         expect(p.readDoc(doc.id)!.body.fps).toBe(24); // неудачная запись ничего не испортила
     });
 
+    it('флипбук: настройки поиска кадров и ключ фона необязательны, но если есть, то верной формы', () => {
+        const { p, image } = setup();
+        const base = { image: image.id, frames: [], fps: 8 };
+        const ok = (extra: object) => codeOf(() => p.addDoc(`ok${Math.random()}.flipbook.json`, 'flipbook', { ...base, ...extra }));
+        const grid = { mode: 'grid', cols: 4, rows: 2 };
+        const auto = { mode: 'auto', color: [63, 51, 63], tolerance: 2, gap: 0, minSize: 1 };
+        expect(ok({ detect: grid, key: { color: [1, 2, 3], low: 6, high: 34 } })).toBe('no error');
+        expect(ok({ detect: auto, key: null })).toBe('no error');
+        for (const detect of [5, null, {}, { mode: 'grid', cols: 0, rows: 1 }, { mode: 'grid', cols: 1, rows: 1.5 }, { mode: 'auto' }, { ...auto, color: [1, 2] }, { ...auto, color: [1, 2, 300] }, { ...auto, tolerance: 'x' }, { ...auto, gap: NaN }, { ...auto, minSize: null }, { mode: 'wrong' }]) {
+            expect(ok({ detect }), JSON.stringify(detect)).toBe('invalidDoc');
+        }
+        for (const key of [5, {}, { color: [1, 2, 3] }, { color: [1, 2, 3], low: 1 }, { color: [1, 2, 3], low: NaN, high: 2 }, { color: [1, 2], low: 1, high: 2 }, { color: [1, 2, 256], low: 1, high: 2 }]) {
+            expect(ok({ key }), JSON.stringify(key)).toBe('invalidDoc');
+        }
+    });
+
     it('addDoc: отказы', () => {
         const { p } = setup();
         expect(codeOf(() => p.addDoc('x.json', 'нет'))).toBe('unknownKind');

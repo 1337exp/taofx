@@ -32,6 +32,8 @@ export interface TabsDeps {
     seek(time: number): void;
     getDirty(): boolean;
     setDirty(dirty: boolean): void;
+    /** Вкладка закрыта или заменена другим предпросмотром: всё, что к ней относилось и жило не здесь (история флипбука), забывается. */
+    dropped?(id: string): void;
 }
 
 /**
@@ -58,8 +60,10 @@ export function useTabs(deps: TabsDeps) {
         }
         const old = tabs.value.findIndex((t) => t.preview);
         if (preview && old >= 0) {
-            stash.delete(tabs.value[old]!.docId);
+            const replaced = tabs.value[old]!.docId;
+            stash.delete(replaced);
             tabs.value.splice(old, 1, { docId: id, preview: true, dirty: false });
+            deps.dropped?.(replaced);
         } else {
             tabs.value.push({ docId: id, preview, dirty: false });
         }
@@ -106,18 +110,23 @@ export function useTabs(deps: TabsDeps) {
         const i = tabs.value.findIndex((t) => t.docId === id);
         if (i >= 0) tabs.value.splice(i, 1);
         stash.delete(id);
+        deps.dropped?.(id);
     }
 
-    /** Вкладка, которая откроется вместо закрываемой: правая, а нет её, левая. */
-    function neighbour(id: string): string | null {
+    /** Вкладка, которая откроется вместо закрываемой: правая, а нет её, левая; `accept` отсеивает неподходящие (ближайшая подходящая). */
+    function neighbour(id: string, accept: (docId: string) => boolean = () => true): string | null {
         const i = tabs.value.findIndex((t) => t.docId === id);
         if (i < 0) return null;
-        return (tabs.value[i + 1] ?? tabs.value[i - 1])?.docId ?? null;
+        const right = tabs.value.slice(i + 1).find((t) => accept(t.docId));
+        const left = tabs.value.slice(0, i).reverse().find((t) => accept(t.docId));
+        return (right ?? left)?.docId ?? null;
     }
 
     function reset() {
+        const gone = tabs.value.map((t) => t.docId);
         tabs.value = [];
         stash.clear();
+        gone.forEach((id) => deps.dropped?.(id));
     }
 
     /** Проект записан в файл: ни у одного документа нет несохранённого. */

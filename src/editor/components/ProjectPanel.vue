@@ -24,9 +24,9 @@ const collapsed = ref<ReadonlySet<string>>(new Set());
 const open = computed(() => openFolders(nodes.value, collapsed.value));
 const onExpanded = (expanded: string[]) => (collapsed.value = collapsedAfter(nodes.value, expanded));
 
-// выбранным в дереве становится открытый документ (при открытии, создании, удалении открытого)
+// выбранным в дереве становится документ на экране (при открытии, создании, удалении)
 watch(
-    () => editor.openDocId,
+    () => editor.activeDocId,
     (id) => {
         if (id !== null) ui.selectedResource = id;
     },
@@ -41,7 +41,7 @@ function onSelect(node: { id: string }) {
     const resource = editor.project.find(node.id);
     editor.setSelection([]); // выбрана строка дерева: выбор нод в графе больше не главный для инспектора
     // документ открывается предпросмотром (вкладка курсивом, её место займёт следующий предпросмотр); картинка только выбирается
-    if (resource?.type === 'doc' && (resource.kind === 'effect' || resource.kind === 'material')) editor.openDocument(node.id, true);
+    if (resource?.type === 'doc') editor.openDocument(node.id, true);
 }
 
 /** Двойной клик по документу закрепляет его вкладку (первый клик уже открыл и выбрал его). */
@@ -60,7 +60,7 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 /** Меню «+»: то, что добавляет в проект. Строится из реестра, поэтому следует за языком и состоянием. */
-const addMenu = computed(() => commands.toMenu([COMMAND.newEffect, COMMAND.newMaterial, '-', COMMAND.import]));
+const addMenu = computed(() => commands.toMenu([COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, '-', COMMAND.import]));
 
 /** Меню строки: переименовать и удалить; выбор переносится на строку, потому что команды работают на выбранном. */
 const rowMenu = computed(() => [

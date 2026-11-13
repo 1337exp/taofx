@@ -67,7 +67,7 @@ describe('реестр команд редактора', () => {
         const { menu } = setup();
         const tree = menu();
         expect(tree.map((m: any) => m.label)).toEqual(['commands.file', 'commands.edit', 'commands.view', 'commands.effect']);
-        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, 'separator', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, 'separator', COMMAND.export]);
+        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, 'separator', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, 'separator', COMMAND.export]);
         expect(find(tree, 'menu.edit').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.undo, COMMAND.redo, 'separator', COMMAND.resourceRename, COMMAND.resourceDelete]);
         expect(find(tree, 'menu.language').items.map((i: any) => i.label)).toEqual(['Русский', 'English']);
         expect(find(tree, 'menu.effect').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.fxEnable, COMMAND.fxDisable, 'separator', COMMAND.fxSample, COMMAND.fxPlay]);
@@ -223,6 +223,47 @@ describe('проект и ресурсы', () => {
         expect(deps.pickFiles).toHaveBeenCalledOnce();
     });
 
+    it('новый флипбук создаёт документ и выводит его на экран вместо сцены', () => {
+        const { commands, editor } = setup();
+        commands.run(COMMAND.newEffect);
+        commands.run(COMMAND.newFlipbook);
+        const flip = editor.project.resources.find((r) => r.kind === 'flipbook')!;
+        expect(flip.path).toBe('flipbooks/flipbook.flip.json');
+        expect(editor.activeFlipbookId).toBe(flip.id);
+        expect(editor.system).not.toBeNull(); // сцена лежит как была
+    });
+
+    it('команды вкладок работают на том, что на экране, в том числе на флипбуке', () => {
+        const { commands, editor } = setup();
+        commands.run(COMMAND.newEffect);
+        commands.run(COMMAND.newFlipbook);
+        const flip = editor.activeFlipbookId!;
+        expect(commands.isEnabled(COMMAND.tabClose)).toBe(true);
+        expect(commands.isEnabled(COMMAND.tabCloseOthers)).toBe(true);
+        commands.run(COMMAND.tabCloseOthers);
+        expect(editor.tabs.map((t) => t.docId)).toEqual([flip]);
+        commands.run(COMMAND.tabClose);
+        expect(editor.tabs).toEqual([]);
+        expect(editor.activeFlipbookId).toBeNull();
+        expect(commands.isEnabled(COMMAND.tabClose)).toBe(false);
+    });
+
+    it('«Открыть» из дерева доступно и для флипбука; удаление открытого флипбука возвращает выбор на документ на экране', async () => {
+        const { commands, editor, ui } = setup();
+        commands.run(COMMAND.newEffect);
+        const fx = editor.openDocId!;
+        commands.run(COMMAND.newFlipbook);
+        const flip = editor.activeFlipbookId!;
+        ui.selectedResource = flip;
+        expect(commands.isEnabled(COMMAND.resourceOpen)).toBe(true);
+        editor.openDocument(fx);
+        commands.run(COMMAND.resourceOpen);
+        expect(editor.activeFlipbookId).toBe(flip);
+        commands.run(COMMAND.resourceDelete);
+        await vi.waitFor(() => expect(editor.project.find(flip)).toBeUndefined());
+        expect(ui.selectedResource).toBe(fx);
+    });
+
     it('команды над ресурсом доступны, только когда он выбран', () => {
         const { commands, editor, ui } = setup();
         for (const id of [COMMAND.resourceOpen, COMMAND.resourceRename, COMMAND.resourceDelete]) expect(commands.isEnabled(id), id).toBe(false);
@@ -357,7 +398,7 @@ describe('палитра и язык', () => {
         const { paletteItems } = setup();
         const items = paletteItems();
         const ids = items.map((i) => i.id);
-        expect(ids.slice(0, 10)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, COMMAND.export]);
+        expect(ids.slice(0, 11)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, COMMAND.export]);
         expect(items.find((i) => i.id === COMMAND.save)).toMatchObject({ label: 'file.save', group: 'commands.file', shortcut: 'Ctrl+S', disabled: false });
         expect(items.find((i) => i.id === COMMAND.undo)).toMatchObject({ group: 'commands.edit', disabled: true });
         expect(items.find((i) => i.id === 'lang.en')).toMatchObject({ group: 'commands.view', label: 'English' });

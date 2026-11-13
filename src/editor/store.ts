@@ -13,6 +13,7 @@ import { packProject, PROJECT_EXTENSION, PROJECT_MIME, unpackProject } from '@/p
 import { createProject, type Project } from '@/project/project';
 import { emptyLink, loadProjectDoc, saveProjectDoc, type ProjectLink } from './projectFile';
 import { layout } from './layout';
+import { useFlipbooks } from './state/flipbooks';
 import { useProjectDocs } from './state/projectDocs';
 import { useTabs } from './state/tabs';
 import { resolveTypes, type GraphError } from '@/graph/resolve';
@@ -136,7 +137,8 @@ export const useEditor = defineStore('editor', () => {
         },
     });
 
-    const { notice, showNotice, canUndo, canRedo, commit, undo, redo, recorded, exportText } = session;
+    const { notice, showNotice, commit, recorded, exportText } = session;
+    const { canUndo: sceneCanUndo, canRedo: sceneCanRedo, undo: sceneUndo, redo: sceneRedo } = session;
 
     //---]>
     // проект: файлы в памяти, открытие и сохранение (решения: docs/project.ru.md)
@@ -269,6 +271,23 @@ export const useEditor = defineStore('editor', () => {
         seek: (time) => particles.seek(time),
         getDirty: () => session.dirty.value,
         setDirty: (value) => (session.dirty.value = value),
+        dropped: (id) => flipbooks.forget(id),
+    });
+    /** Флипбуки: тело правится прямо в проекте, история у каждого своя; на экране активный флипбук вместо сцены. */
+    const flipbooks = useFlipbooks({ project, projectRevision, tabs: tabsApi });
+
+    /** Отмена и возврат относятся к тому, что на экране: к активному флипбуку или к документу сцены. */
+    const canUndo = computed(() => (flipbooks.activeId.value !== null ? flipbooks.canUndo.value : sceneCanUndo.value));
+    const canRedo = computed(() => (flipbooks.activeId.value !== null ? flipbooks.canRedo.value : sceneCanRedo.value));
+    const undo = () => (flipbooks.activeId.value !== null ? flipbooks.undo() : sceneUndo());
+    const redo = () => (flipbooks.activeId.value !== null ? flipbooks.redo() : sceneRedo());
+
+    /** Вкладка, на которую смотрят: флипбук или документ сцены (null: у документа сцены ещё нет файла). */
+    const activeDocId = computed(() => flipbooks.activeId.value ?? openDocId.value);
+    /** Документ сцены без файла показывается временной вкладкой, но не когда он пустая заготовка, а на экране флипбук. */
+    const draftTab = computed(() => {
+        void projectRevision.value;
+        return openDocId.value === null && !(flipbooks.activeId.value !== null && pristine);
     });
     // правка предпросмотра закрепляет его вкладку: документ, который правят, не должен исчезнуть при следующем предпросмотре
     watch(
@@ -291,6 +310,7 @@ export const useEditor = defineStore('editor', () => {
             fitSoon();
         },
         tabs: tabsApi,
+        flipbooks,
         keepCamera: () => (graphFitPending.value = false),
         openDocId,
         projectRevision,
@@ -392,6 +412,16 @@ export const useEditor = defineStore('editor', () => {
         closeAllTabs: docs.closeAllTabs,
         /** Вкладки открытых документов (порядок, предпросмотр, «не сохранено» у тех, что не на экране). */
         tabs: tabsApi.tabs,
+        activeDocId,
+        draftTab,
+        /** Флипбук на экране (id и тело с настройками по умолчанию), правка, создание. */
+        activeFlipbookId: flipbooks.activeId,
+        flipbook: flipbooks.active,
+        flipbookBody: flipbooks.bodyOf,
+        updateFlipbook: flipbooks.update,
+        createFlipbook: docs.createFlipbook,
+        /** На экран возвращается документ сцены (флипбук остаётся открытой вкладкой). */
+        showScene: flipbooks.deactivate,
         pinTab: tabsApi.pin,
         moveTab: tabsApi.move,
         /** Есть правки открытого документа, не записанные в файл проекта. */

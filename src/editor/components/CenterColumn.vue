@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n';
 import { layout } from '../layout';
 import { useEditor } from '../store';
 import BottomPanel from './BottomPanel.vue';
+import FlipbookView from './FlipbookView.vue';
 import GraphView from './GraphView.vue';
 import Timeline from './Timeline.vue';
 
@@ -30,12 +31,12 @@ const items = computed<TaoDocTab[]>(() => {
             dirty: tab.docId === editor.openDocId ? editor.docDirty : tab.dirty,
         };
     });
-    if (editor.openDocId === null) list.push({ value: DRAFT, label: editor.projectName || t('file.untitled'), closable: false, dirty: editor.docDirty });
+    if (editor.draftTab) list.push({ value: DRAFT, label: editor.projectName || t('file.untitled'), closable: false, dirty: editor.docDirty });
     return list;
 });
-const active = computed(() => editor.openDocId ?? DRAFT);
+const active = computed(() => editor.activeDocId ?? DRAFT);
 
-const onSelect = (value: string) => value !== DRAFT && editor.openDocument(value);
+const onSelect = (value: string) => (value === DRAFT ? editor.showScene() : editor.openDocument(value));
 const onReorder = (from: number, to: number) => {
     const count = editor.tabs.length; // у черновика (он последний и не в списке вкладок) места не меняют
     if (from < count && to < count) editor.moveTab(from, to);
@@ -51,12 +52,13 @@ const view = computed({
     <div class="center">
         <div class="docbar">
             <TaoDocTabs class="tabs" :model-value="active" :items="items" @update:model-value="onSelect" @close="editor.closeTab" @pin="editor.pinTab" @reorder="onReorder" />
-            <TaoSegmented v-model="view" :aria-label="t('shell.views')">
+            <TaoSegmented v-show="editor.activeFlipbookId === null" v-model="view" :aria-label="t('shell.views')">
                 <TaoSegmentedOption value="preview" :label="t('shell.preview')" />
                 <TaoSegmentedOption value="graph" :label="t('shell.graph')" />
             </TaoSegmented>
         </div>
-        <TaoSplit v-model="layout.stage" direction="column" class="grow" :min="25" :min-end="10" @change="(v: number) => (layout.stage = v)">
+        <FlipbookView v-if="editor.activeFlipbookId !== null" />
+        <TaoSplit v-show="editor.activeFlipbookId === null" v-model="layout.stage" direction="column" class="grow" :min="25" :min-end="10" @change="(v: number) => (layout.stage = v)">
             <template #start>
                 <div class="stage">
                     <!-- Превью остаётся в памяти под графом: заново поднимать WebGPU при каждом переключении дорого -->

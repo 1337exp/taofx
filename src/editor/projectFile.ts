@@ -199,7 +199,7 @@ function sameExceptView(a: Body, b: Body): boolean {
 }
 
 /** Свободный путь документа: `имя.fx.json`, `имя 2.fx.json`, `имя 3.fx.json` (расширение двойное, поэтому не `uniquePath`). */
-function uniqueDocPath(dir: string, base: string, suffix: string, taken: (path: string) => boolean): string {
+export function uniqueDocPath(dir: string, base: string, suffix: string, taken: (path: string) => boolean): string {
     for (let n = 1; ; n++) {
         const path = join(dir, n === 1 ? base + suffix : `${base} ${n}${suffix}`);
         if (!taken(path)) return path;
@@ -214,12 +214,12 @@ export function newDocument(kind: 'effect' | 'material'): EditorDoc {
 
 /** Что в имени файла ресурса можно переименовать: без папки и без расширения (у документа это `.fx.json` или `.mat.json`). */
 export function renamableName(resource: Pick<Resource, 'path' | 'type'>): string {
-    return stem(resource.path).replace(/.(fx|mat)$/, '');
+    return stem(resource.path).replace(/.(fx|mat|flip)$/, '');
 }
 
 function suffixOf(resource: Pick<Resource, 'path' | 'type'>): string {
     if (resource.type === 'asset') return extname(resource.path);
-    return /.(fx|mat).json$/.exec(resource.path)?.[0] ?? '.json';
+    return /.(fx|mat|flip).json$/.exec(resource.path)?.[0] ?? '.json';
 }
 
 /**

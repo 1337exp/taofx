@@ -7,6 +7,7 @@ import { layout } from '../layout';
 import { useEditor } from '../store';
 import { ui } from '../ui';
 import AssetInspector from './AssetInspector.vue';
+import FlipbookInspector from './FlipbookInspector.vue';
 import NodeInspector from './NodeInspector.vue';
 import ParticleInspector from './ParticleInspector.vue';
 
@@ -23,13 +24,13 @@ const target = computed(() =>
     }),
 );
 
-const heading = computed(() => (target.value.kind === 'node' ? t('inspector.node') : target.value.kind === 'asset' ? t('inspector.asset') : t('shell.inspector')));
+const heading = computed(() => (editor.activeFlipbookId !== null ? t('inspector.flipbook') : target.value.kind === 'node' ? t('inspector.node') : target.value.kind === 'asset' ? t('inspector.asset') : t('shell.inspector')));
 
 // выбрана нода в графе: выбор в дереве возвращается на открытый документ, иначе картинка осталась бы «выбранной» под нодой
 watch(
     () => editor.selection.size,
     (n) => {
-        if (n > 0 && ui.selectedResource !== editor.openDocId) ui.selectedResource = editor.openDocId;
+        if (n > 0 && ui.selectedResource !== editor.activeDocId) ui.selectedResource = editor.activeDocId;
     },
 );
 </script>
@@ -38,7 +39,8 @@ watch(
     <aside class="panel" :aria-label="t('shell.inspector')">
         <header>{{ heading }}</header>
         <div class="body tao-density-compact">
-            <NodeInspector v-if="target.kind === 'node'" :key="target.id" :node-id="target.id" />
+            <FlipbookInspector v-if="editor.activeFlipbookId !== null" />
+            <NodeInspector v-else-if="target.kind === 'node'" :key="target.id" :node-id="target.id" />
             <AssetInspector v-else-if="target.kind === 'asset'" :key="target.resource.id" :resource="target.resource" />
             <ParticleInspector v-else-if="editor.system" />
             <div v-else class="empty">

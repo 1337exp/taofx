@@ -3,6 +3,7 @@ import { TaoButton } from '@1337exp/taoui';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import { COMMAND } from '../commands';
+import { createFlipbookFromImage } from '../flipbookActions';
 import { MIME_BY_EXT } from '../projectFile';
 import { useEditorCommands } from '../shellCommands';
 import { extname } from '@/project/paths';
@@ -60,6 +61,7 @@ const name = (r: Resource) => r.path.slice(r.path.lastIndexOf('/') + 1);
             </dd>
         </dl>
         <div class="actions">
+            <TaoButton variant="primary" @click="createFlipbookFromImage(resource.id)">{{ t('flipbook.make') }}</TaoButton>
             <TaoButton variant="secondary" @click="commands.run(COMMAND.resourceRename)">{{ t('project.rename') }}</TaoButton>
             <TaoButton variant="secondary" tone="danger" @click="commands.run(COMMAND.resourceDelete)">{{ t('project.delete') }}</TaoButton>
         </div>
@@ -127,6 +129,7 @@ dd {
 
 .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 6px;
 }

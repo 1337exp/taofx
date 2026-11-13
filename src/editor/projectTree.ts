@@ -40,7 +40,7 @@ export function buildProjectTree(resources: readonly Resource[]): ProjectTreeNod
             .map(([name, child]): ProjectTreeNode => ({ id: folderId(base + name), label: name, children: convert(child, `${base}${name}/`) }))
             .sort(byLabel),
         ...dir.files
-            .map((r): ProjectTreeNode => ({ id: r.id, label: r.path.slice(r.path.lastIndexOf('/') + 1), ...(r.kind === 'image' ? { icon: 'tao-image' } : {}) }))
+            .map((r): ProjectTreeNode => ({ id: r.id, label: r.path.slice(r.path.lastIndexOf('/') + 1), ...(r.kind === 'image' ? { icon: 'tao-image' } : r.kind === 'flipbook' ? { icon: 'tao-play' } : {}) }))
             .sort(byLabel),
     ];
     return convert(root, '');

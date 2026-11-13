@@ -187,3 +187,37 @@ describe('вкладки: порядок, закрытие, соседи', () =>
         expect(t.deps.setDirty).toHaveBeenLastCalledWith(false);
     });
 });
+
+describe('вкладки: что вне них забывается вместе с ними', () => {
+    function withDropped() {
+        const dropped = vi.fn();
+        const base = setup();
+        const t = useTabs({ ...base.deps, dropped });
+        return { t, dropped };
+    }
+
+    it('закрытая, замещённая предпросмотром и сброшенные вкладки сообщают о себе', () => {
+        const { t, dropped } = withDropped();
+        t.add('a', true);
+        t.add('b', true); // заместила «a»
+        expect(dropped).toHaveBeenCalledExactlyOnceWith('a');
+        t.add('c');
+        t.remove('c');
+        expect(dropped).toHaveBeenLastCalledWith('c');
+        t.reset();
+        expect(dropped).toHaveBeenLastCalledWith('b');
+        expect(dropped).toHaveBeenCalledTimes(3);
+    });
+
+    it('сосед закрываемой вкладки можно выбирать среди подходящих: ближайший справа, а нет, ближайший слева', () => {
+        const t = setup();
+        ['a', 'x1', 'b', 'x2', 'c'].forEach((id) => t.add(id));
+        const plain = (id: string) => !id.startsWith('x');
+        expect(t.neighbour('b', plain)).toBe('c');
+        expect(t.neighbour('c', plain)).toBe('b');
+        expect(t.neighbour('a', plain)).toBe('b');
+        t.remove('c');
+        expect(t.neighbour('b', plain)).toBe('a'); // справа только неподходящая
+        expect(t.neighbour('b', () => false)).toBeNull();
+    });
+});

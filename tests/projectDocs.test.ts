@@ -28,6 +28,7 @@ describe('имена ресурсов', () => {
     it('переименуемое имя: без папки и расширения', () => {
         expect(renamableName(doc)).toBe('boom');
         expect(renamableName({ path: 'a/b.mat.json', type: 'doc' })).toBe('b');
+        expect(renamableName({ path: 'flipbooks/boom.flip.json', type: 'doc' })).toBe('boom');
         expect(renamableName({ path: 'a/plain.json', type: 'doc' })).toBe('plain');
         expect(renamableName(image)).toBe('Sheet');
     });
@@ -180,11 +181,11 @@ describe('открытие документа: тонкости', () => {
         expect(editor.canUndo).toBe(true);
     });
 
-    it('документ, не являющийся эффектом или материалом (флипбук), не открывается', () => {
+    it('ресурс, не являющийся документом (картинка), не открывается', () => {
         const editor = useEditor();
         editor.createDocument('effect');
-        const flip = editor.project.addDoc('flip.flipbook.json', 'flipbook', {});
-        expect(editor.openDocument(flip.id)).toBe(false);
+        const image = editor.project.addAsset('textures/a.png', new Uint8Array([1]));
+        expect(editor.openDocument(image.id)).toBe(false);
         expect(editor.notice).toMatchObject({ kind: 'error' });
     });
 

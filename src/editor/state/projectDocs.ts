@@ -6,8 +6,10 @@ import type { MessageKey } from '@/i18n';
 import { ProjectError, type Project, type Resource } from '@/project/project';
 import { extname, join, stem, uniquePath } from '@/project/paths';
 import { emptyDoc, parseDoc, type EditorDoc } from '../doc';
+import type { Flipbooks } from './flipbooks';
 import type { Tabs } from './tabs';
-import { assetNameOf, emptyLink, loadProjectDoc, newDocument, renamedPath, saveProjectDoc, type ProjectLink } from '../projectFile';
+import { DEFAULT_DETECT, DEFAULT_FPS, type FlipbookBody } from '@/flipbook/model';
+import { assetNameOf, emptyLink, loadProjectDoc, newDocument, renamedPath, saveProjectDoc, uniqueDocPath, type ProjectLink } from '../projectFile';
 
 /** От чего зависят операции: хранилища и то, как документ подменяется в редакторе. */
 export interface ProjectDocsDeps {
@@ -23,6 +25,8 @@ export interface ProjectDocsDeps {
     show(doc: EditorDoc, view?: SavedView): void;
     /** Вкладки открытых документов: у каждого своя история, камера, вид и время. */
     tabs: Tabs;
+    /** Флипбуки: тело правится прямо в проекте, на экране он вместо сцены. */
+    flipbooks: Flipbooks;
     /** Документ вернулся на экран со своей камерой: подбирать её по размеру холста уже не нужно. */
     keepCamera(): void;
     openDocId: Ref<string | null>;
@@ -76,13 +80,29 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
      * `preview`: вкладка-предпросмотр, её место займёт следующий предпросмотр.
      */
     function openDocument(id: string, preview = false): boolean {
+        if (deps.flipbooks.isFlipbook(id)) return openFlipbook(id, preview);
+        deps.flipbooks.deactivate(); // на экран возвращается живой документ
         if (deps.getLink().docId === id) {
             if (!preview) deps.tabs.pin(id);
+            touch();
             return true;
         }
         sync();
         deps.tabs.leave(deps.getLink().docId);
         return showLoaded(id, preview);
+    }
+
+    /**
+     * Выводит флипбук на экран вместо сцены. Живой документ остаётся в редакторе как был; если его вкладка-предпросмотр заменена
+     * этим предпросмотром, он выгружается (записанный в проект, он поднимется снова по своей вкладке), чтобы не остаться без вкладки.
+     */
+    function openFlipbook(id: string, preview = false): boolean {
+        sync();
+        if (!deps.flipbooks.activate(id, preview)) return false;
+        const live = deps.getLink().docId;
+        if (live !== null && !deps.tabs.has(live)) showEmpty();
+        touch();
+        return true;
     }
 
     /** Показывает пустой документ без файла (закрыта последняя вкладка, удалён последний документ). */
@@ -92,21 +112,51 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         touch();
     }
 
-    /** Закрывает вкладку: документ остаётся в проекте. Закрытая открытая вкладка отдаёт экран соседней, а последняя пустому документу. */
+    /** Вкладка, на которую смотрит пользователь: флипбук или живой документ (null: у живого нет файла). */
+    const activeTab = () => deps.flipbooks.activeId.value ?? deps.getLink().docId;
+
+    /** Открывает вкладку любого вида: флипбук выводится вместо сцены, документ графа загружается в редактор. */
+    function showTab(id: string): boolean {
+        return deps.flipbooks.isFlipbook(id) ? openFlipbook(id) : showLoaded(id);
+    }
+
+    /**
+     * Закрывает вкладку: документ остаётся в проекте. Закрытая вкладка, на которую смотрят, отдаёт экран соседней (правой, а
+     * нет её, левой), а последняя пустому документу. Закрытый живой документ заменяется ближайшим живым (или пустым): в
+     * редакторе без вкладки ему лежать нельзя.
+     */
     function closeTab(id: string) {
+        const watching = activeTab() === id;
+        if (deps.flipbooks.isFlipbook(id)) {
+            const next = watching ? deps.tabs.neighbour(id) : null;
+            deps.tabs.remove(id); // забывает и историю флипбука, и экран, если он был на нём
+            if (next !== null) showTab(next);
+            touch();
+            return;
+        }
         if (deps.getLink().docId !== id) {
             deps.tabs.remove(id);
             return;
         }
         sync();
-        const next = deps.tabs.neighbour(id);
+        const isLive = (docId: string) => !deps.flipbooks.isFlipbook(docId);
+        const next = watching ? deps.tabs.neighbour(id) : deps.tabs.neighbour(id, isLive);
         deps.tabs.remove(id);
-        if (!(next !== null && showLoaded(next))) showEmpty();
+        if (next !== null && isLive(next)) {
+            if (!showLoaded(next)) showEmpty();
+        } else {
+            showEmpty();
+            if (next !== null) openFlipbook(next);
+        }
     }
 
     /** Оставляет открытой только эту вкладку. */
     function closeOtherTabs(id: string) {
         if (!openDocument(id)) return;
+        if (deps.flipbooks.isFlipbook(id)) {
+            sync();
+            showEmpty(); // живой документ без вкладки не остаётся
+        }
         for (const tab of [...deps.tabs.tabs.value]) if (tab.docId !== id) deps.tabs.remove(tab.docId);
     }
 
@@ -130,6 +180,25 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         if (!showLoaded(link.docId ?? undefined)) deps.show(doc, view);
         sync();
         return link.docId;
+    }
+
+    /**
+     * Новый флипбук в проекте (`flipbooks/имя.flip.json`); имя берётся у картинки, если она задана. Открывается сразу.
+     * Кадры считает вызывающий (для этого нужны пиксели картинки), здесь только запись.
+     */
+    function createFlipbook(init: Partial<FlipbookBody> = {}): string | null {
+        sync();
+        const p = project.value;
+        const found = init.image ? p.find(init.image) : undefined;
+        const image = found?.kind === 'image' ? found : undefined; // только картинка проекта
+        const base = image ? stem(image.path) : 'flipbook';
+        const body: FlipbookBody = { image: '', frames: [], fps: DEFAULT_FPS, detect: { ...DEFAULT_DETECT }, key: null, ...init };
+        body.image = image?.id ?? '';
+        const path = uniqueDocPath('flipbooks', base, '.flip.json', (candidate) => p.files.has(candidate));
+        const resource = p.addDoc(path, 'flipbook', { ...body });
+        openFlipbook(resource.id);
+        touch();
+        return resource.id;
     }
 
     /** Меняет имя файла ресурса; папка и расширение остаются, id и ссылки целы. */
@@ -161,16 +230,20 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         const removed = project.value.remove(id, { force });
         if (!removed.ok) return removed;
         const openId = deps.getLink().docId;
-        const next = deps.tabs.neighbour(id); // соседняя вкладка займёт место закрытой
-        deps.tabs.remove(id);
+        const watching = activeTab() === id;
+        const next = deps.tabs.neighbour(id, (docId) => !deps.flipbooks.isFlipbook(docId)); // соседняя живая вкладка займёт место закрытой
+        const nextAny = deps.tabs.neighbour(id);
+        deps.tabs.remove(id); // забывает и флипбук: историю и экран
         if (openId === id) {
             // открытый документ удалён: берётся соседний по вкладкам, а нет такого, главный из оставшихся, а нет ни одного, пустой
             deps.setLink(emptyLink());
             // оставшийся не открылся (повреждён): показываем пустой документ, а не удалённый, чтобы он не воскрес при записи
             if (!(next !== null && showLoaded(next)) && !showLoaded(undefined)) deps.show(emptyDoc(), { x: 0, y: 0, z: 1 });
+            if (watching && nextAny !== null && deps.flipbooks.isFlipbook(nextAny)) openFlipbook(nextAny);
         } else if (openId !== null && removed.dangling.some((d) => d.id === openId)) {
             showLoaded(openId); // он ссылался на удалённую картинку: поднимается заново уже без неё
         }
+        if (watching && resource.kind === 'flipbook' && nextAny !== null) showTab(nextAny); // на экране был удалённый флипбук
         touch();
         return { ok: true };
     }
@@ -225,7 +298,7 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         return project.value.referrers(id);
     }
 
-    return { sync, openDocument, createDocument, renameResource, deleteResource, importFiles, referrersOf, closeTab, closeOtherTabs, closeAllTabs };
+    return { sync, openDocument, createDocument, createFlipbook, renameResource, deleteResource, importFiles, referrersOf, closeTab, closeOtherTabs, closeAllTabs };
 }
 
 export type ProjectDocs = ReturnType<typeof useProjectDocs>;
