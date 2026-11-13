@@ -1,62 +1,32 @@
 <script lang="ts" setup>
-import { downloadText } from '@1337exp/taoux/file';
-import { confirm, TaoButton, TaoSelect, TaoTooltip } from '@1337exp/taoui';
-import { computed, nextTick, ref } from 'vue';
-import { isLocaleCode, LOCALE_CODES, LOCALE_NAMES, setLocale, useI18n } from '@/i18n';
-import { FILE_NAME } from '../file';
+import { TaoButton, TaoMenubar, TaoTooltip } from '@1337exp/taoui';
+import { computed } from 'vue';
+import { useI18n } from '@/i18n';
+import { COMMAND } from '../commands';
+import { useEditorCommands } from '../shellCommands';
 import { useEditor } from '../store';
 
-// Верхняя строка оболочки: файл, отмена, название проекта, главное действие области («Экспорт»). Меню из реестра команд
-// придёт следующим шагом этапа 4 и займёт место этих кнопок.
+// Верхняя строка оболочки: меню (строится из реестра команд), отмена и возврат, название проекта, палитра команд и главное
+// действие области («Экспорт»). Ни одного действия здесь не написано: всё это команды из `commands.ts`.
 const editor = useEditor();
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const { commands, menu } = useEditorCommands();
 
-const fileInput = ref<HTMLInputElement | null>(null);
-const languages = computed(() => LOCALE_CODES.map((code) => ({ value: code, label: LOCALE_NAMES[code] })));
+// читается внутри computed: подписи, «доступно» и «отмечено» следуют за состоянием и языком
+const items = computed(() => menu());
 
-async function onFile(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // чтобы тот же файл можно было открыть повторно
-    if (file) await editor.openFile(file);
-}
-
-/** Проект живёт в памяти вкладки: перед тем как заменить его, спрашиваем, если есть несохранённое. */
-async function canDiscard(): Promise<boolean> {
-    if (!editor.dirty) return true;
-    return confirm(t('file.discardTitle')).message(t('file.discardMessage')).danger().ok(t('file.discard'));
-}
-
-async function onNew() {
-    if (await canDiscard()) editor.newProject();
-}
-
-async function onOpen() {
-    if (await canDiscard()) fileInput.value?.click();
-}
-
-async function startParticles() {
-    editor.startParticles();
-    await nextTick();
-    if (editor.takeFitRequest()) editor.fitView();
-}
-
-function onLocale(value: string | number | null) {
-    if (isLocaleCode(value)) setLocale(value);
-}
+const run = (id: string | number) => commands.run(String(id));
+const hint = (id: string) => [commands.label(id), commands.shortcutLabel(id)].filter(Boolean).join('  ');
 </script>
 
 <template>
     <header class="top">
-        <TaoButton variant="secondary" @click="onNew">{{ t('file.new') }}</TaoButton>
-        <TaoButton variant="secondary" @click="onOpen">{{ t('file.open') }}</TaoButton>
-        <TaoButton variant="secondary" @click="editor.saveProject()">{{ t('file.save') }}</TaoButton>
-        <input ref="fileInput" type="file" accept=".taofx,.json,application/zip,application/json" hidden @change="onFile" />
+        <TaoMenubar :items="items" :bordered="false" :aria-label="t('commands.file')" @select="run" />
 
         <span class="sep" />
 
-        <TaoTooltip :content="t('history.undo')"><TaoButton variant="ghost" tone="neutral" :aria-label="t('history.undo')" :disabled="!editor.canUndo" @click="editor.undo()">↶</TaoButton></TaoTooltip>
-        <TaoTooltip :content="t('history.redo')"><TaoButton variant="ghost" tone="neutral" :aria-label="t('history.redo')" :disabled="!editor.canRedo" @click="editor.redo()">↷</TaoButton></TaoTooltip>
+        <TaoTooltip :content="hint(COMMAND.undo)"><TaoButton variant="ghost" tone="neutral" :aria-label="t('history.undo')" :disabled="!commands.isEnabled(COMMAND.undo)" @click="run(COMMAND.undo)">↶</TaoButton></TaoTooltip>
+        <TaoTooltip :content="hint(COMMAND.redo)"><TaoButton variant="ghost" tone="neutral" :aria-label="t('history.redo')" :disabled="!commands.isEnabled(COMMAND.redo)" @click="run(COMMAND.redo)">↷</TaoButton></TaoTooltip>
 
         <span class="doc" :title="editor.dirty ? t('file.unsaved') : undefined">
             {{ editor.projectName || t('file.untitled') }}<i v-if="editor.dirty" class="dirty" aria-hidden="true">●</i>
@@ -65,9 +35,8 @@ function onLocale(value: string | number | null) {
 
         <span class="grow" />
 
-        <TaoButton variant="secondary" @click="startParticles">{{ t('shell.sample') }}</TaoButton>
-        <TaoSelect class="lang" :model-value="locale" :options="languages" :clearable="false" @update:model-value="onLocale" />
-        <TaoTooltip :content="t('shell.exportHint')"><TaoButton variant="primary" @click="downloadText(FILE_NAME, editor.exportText())">{{ t('shell.export') }}</TaoButton></TaoTooltip>
+        <TaoButton variant="ghost" tone="neutral" @click="run(COMMAND.palette)">{{ t('commands.paletteButton') }} <kbd class="key">{{ commands.shortcutLabel(COMMAND.palette) }}</kbd></TaoButton>
+        <TaoTooltip :content="hint(COMMAND.export)"><TaoButton variant="primary" @click="run(COMMAND.export)">{{ t('shell.export') }}</TaoButton></TaoTooltip>
     </header>
 </template>
 
@@ -113,15 +82,18 @@ function onLocale(value: string | number | null) {
     font-style: normal;
 }
 
+.key {
+    margin-left: 6px;
+    color: var(--tao-color-text-muted, #8b929c);
+    font: inherit;
+    font-size: 12px;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
-}
-
-.lang {
-    width: 120px;
 }
 </style>

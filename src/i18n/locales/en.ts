@@ -85,6 +85,18 @@ const en: typeof ru = {
     timeline: {
         sec: 's',
     },
+    commands: {
+        file: 'File',
+        edit: 'Edit',
+        view: 'View',
+        effect: 'Effect',
+        language: 'Language',
+        open: 'Open…',
+        exportJson: 'Export JSON for the game',
+        playPause: 'Play or pause',
+        palette: 'Command palette',
+        paletteButton: 'Commands',
+    },
     shell: {
         project: 'Project',
         layers: 'Layers',

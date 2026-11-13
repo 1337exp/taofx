@@ -1,10 +1,16 @@
 <script lang="ts" setup>
-import { TaoConfirmHost } from '@1337exp/taoui';
-import { onMounted, onUnmounted } from 'vue';
+import { TaoCommandPalette, TaoConfirmHost, type TaoCommandItem } from '@1337exp/taoui';
+import { computed, onMounted, onUnmounted } from 'vue';
 import Shell from '@/editor/components/Shell.vue';
+import { useEditorCommands } from '@/editor/shellCommands';
 import { useEditor } from '@/editor/store';
+import { ui } from '@/editor/ui';
 
 const editor = useEditor();
+const { commands, paletteItems } = useEditorCommands();
+
+// читается внутри computed: подписи, «доступно» и сочетания следуют за состоянием и языком
+const items = computed(() => paletteItems());
 
 // Проект живёт только в памяти вкладки: при закрытии с несохранёнными правками браузер спросит (текст он покажет свой).
 function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -13,27 +19,26 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
     e.returnValue = '';
 }
 
-// Ctrl+S (Cmd+S) сохраняет проект, а не страницу. Физическая клавиша: работает и на русской раскладке.
-function onKeydown(e: KeyboardEvent) {
-    if (e.code !== 'KeyS' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    void editor.saveProject();
-}
+let unbind: (() => void) | undefined;
 
 onMounted(() => {
     editor.fitView(); // при каждом запуске открыт демо-граф: ничего не хранится между запусками
     window.addEventListener('beforeunload', onBeforeUnload);
-    window.addEventListener('keydown', onKeydown);
+    // сочетания всех команд (Ctrl+S, Ctrl+K…) слушает реестр; в полях ввода он пропускает то, что нужно тексту
+    unbind = commands.bind(window);
 });
 
 onUnmounted(() => {
     window.removeEventListener('beforeunload', onBeforeUnload);
-    window.removeEventListener('keydown', onKeydown);
+    unbind?.();
 });
+
+const onSelect = (item: TaoCommandItem) => commands.run(item.id);
 </script>
 
 <template>
     <Shell />
+    <TaoCommandPalette v-model="ui.paletteOpen" :items="items" @select="onSelect" />
     <TaoConfirmHost />
 </template>
 

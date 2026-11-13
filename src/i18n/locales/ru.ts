@@ -84,6 +84,18 @@ export default {
     timeline: {
         sec: 'с',
     },
+    commands: {
+        file: 'Файл',
+        edit: 'Правка',
+        view: 'Вид',
+        effect: 'Эффект',
+        language: 'Язык',
+        open: 'Открыть…',
+        exportJson: 'Экспорт JSON для игры',
+        playPause: 'Играть или пауза',
+        palette: 'Палитра команд',
+        paletteButton: 'Команды',
+    },
     shell: {
         project: 'Проект',
         layers: 'Слои',
