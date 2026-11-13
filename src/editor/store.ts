@@ -12,6 +12,7 @@ import { emptyDoc, parseDoc, serializeDoc, type EditorDoc } from './doc';
 import { packProject, PROJECT_EXTENSION, PROJECT_MIME, unpackProject } from '@/project/archive';
 import { createProject, type Project } from '@/project/project';
 import { emptyLink, loadProjectDoc, saveProjectDoc, type ProjectLink } from './projectFile';
+import { useProjectDocs } from './state/projectDocs';
 import { resolveTypes, type GraphError } from '@/graph/resolve';
 import type { Graph, PinRef } from '@/graph/types';
 import type { MessageKey } from '@/i18n';
@@ -133,7 +134,7 @@ export const useEditor = defineStore('editor', () => {
         },
     });
 
-    const { notice, showNotice, canUndo, canRedo, dirty, commit, undo, redo, recorded, exportText } = session;
+    const { notice, showNotice, canUndo, canRedo, commit, undo, redo, recorded, exportText } = session;
 
     //---]>
     // проект: файлы в памяти, открытие и сохранение (решения: docs/project.ru.md)
@@ -148,7 +149,22 @@ export const useEditor = defineStore('editor', () => {
     /** Растёт, когда файлы проекта изменились мимо реактивности (сохранение, открытие): по нему перестраивается дерево. */
     const projectRevision = ref(0);
 
+    /** Файлы проекта изменились после открытия или последнего сохранения (документ редактора сюда не входит). */
+    const filesDirty = ref(false);
+    let stopWatchingFiles: (() => void) | undefined;
+    /** Не сохранено: правки открытого документа или изменения файлов проекта (создание, переименование, импорт, смена документа). */
+    const dirty = computed(() => session.dirty.value || filesDirty.value);
+
+    /** Следит за файлами проекта: любое изменение делает его «не сохранённым». Прежний проект отпускается. */
+    function watchFiles(watched: Project) {
+        stopWatchingFiles?.();
+        filesDirty.value = false;
+        stopWatchingFiles = watched.files.subscribe(() => (filesDirty.value = true));
+    }
+    watchFiles(project.value);
+
     function useProject(next: Project, nextLink: ProjectLink) {
+        watchFiles(next);
         project.value = markRaw(next);
         link = nextLink;
         projectName.value = next.manifest.name;
@@ -170,6 +186,7 @@ export const useEditor = defineStore('editor', () => {
     function newProject() {
         useProject(createProject(), emptyLink());
         session.load(emptyDoc(), { x: 0, y: 0, z: 1 }, true);
+        pristine = true;
         graphFitPending.value = true;
         showNotice('info', 'file.newGraph');
     }
@@ -184,6 +201,7 @@ export const useEditor = defineStore('editor', () => {
         if (unpacked.project.manifest.name === '' && name !== '') unpacked.project.setManifest({ name });
         unpacked.project.markSaved();
         useProject(unpacked.project, docLink);
+        pristine = docLink.docId === null; // проект без документов открывается пустой заготовкой
         session.load(doc, view, true);
         showOpened(Object.keys(doc.graph.nodes).length, dropped, unpacked.project.problems.length + missingAssets);
     }
@@ -193,6 +211,7 @@ export const useEditor = defineStore('editor', () => {
         const parsed = parseDoc(text, registry);
         if (!parsed.ok) return refuse(parsed.error.code, parsed.error.detail);
         useProject(createProject({ name: name === 'taofx' ? '' : name }), emptyLink());
+        pristine = false;
         session.load(parsed.doc, parsed.view, true);
         showOpened(Object.keys(parsed.doc.graph.nodes).length, parsed.dropped, 0);
     }
@@ -214,6 +233,7 @@ export const useEditor = defineStore('editor', () => {
             link = saveProjectDoc(p, { graph: graph.value, system: system.value }, { x: camera.value.x, y: camera.value.y, z: camera.value.z }, link, p.manifest.name);
             downloadBlob(fileBaseOf(p.manifest.name) + PROJECT_EXTENSION, await packProject(p), PROJECT_MIME);
             p.markSaved();
+            filesDirty.value = false;
             session.markSaved();
             openDocId.value = link.docId;
             projectRevision.value++;
@@ -224,6 +244,26 @@ export const useEditor = defineStore('editor', () => {
             return false;
         }
     }
+
+    /** Открытый документ это нетронутая заготовка: демо при запуске или пустой после «Новый проект». Открытие и создание документа это снимают. */
+    let pristine = true;
+
+    const docs = useProjectDocs({
+        registry,
+        project,
+        getLink: () => link,
+        setLink: (next) => (link = next),
+        current: () => ({ doc: { graph: graph.value, system: system.value }, view: { x: camera.value.x, y: camera.value.y, z: camera.value.z } }),
+        isPristine: () => pristine && link.docId === null && !session.dirty.value,
+        show: (doc, view) => {
+            pristine = link.docId === null; // документ без файла (пустой после удаления последнего) остаётся заготовкой
+            session.load(doc, view ?? { x: 0, y: 0, z: 1 }, true);
+            fitSoon();
+        },
+        openDocId,
+        projectRevision,
+        notify: showNotice,
+    });
 
     const particles = useParticleDoc({
         system,
@@ -313,6 +353,14 @@ export const useEditor = defineStore('editor', () => {
         newProject,
         openFile,
         saveProject,
+        /** Документы проекта: открыть, создать, переименовать, удалить, добавить файлы (см. `state/projectDocs`). */
+        openDocument: docs.openDocument,
+        createDocument: docs.createDocument,
+        renameResource: docs.renameResource,
+        deleteResource: docs.deleteResource,
+        importFiles: docs.importFiles,
+        syncDocument: docs.sync,
+        referrersOf: docs.referrersOf,
         commit,
         undo,
         redo,

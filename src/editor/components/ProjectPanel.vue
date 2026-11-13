@@ -1,14 +1,18 @@
 <script lang="ts" setup>
-import { TaoEmpty, TaoTree } from '@1337exp/taoui';
-import { computed, ref } from 'vue';
+import { TaoDropdownMenu, TaoEmpty, TaoIcon, TaoTree } from '@1337exp/taoui';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
+import { COMMAND } from '../commands';
 import { buildProjectTree } from '../projectTree';
+import { useEditorCommands } from '../shellCommands';
 import { useEditor } from '../store';
+import { ui } from '../ui';
 
-// «Проект»: дерево ресурсов открытого проекта по их путям. Пока только показ (открытие, создание и перенос приходят
-// следующим шагом этапа 4): главное, что видно, с чем работаем.
+// «Проект»: дерево ресурсов открытого проекта по их путям (docs/design.ru.md). Клик по документу открывает его, F2
+// переименовывает, Delete удаляет (с перечнем тех, кто на него ссылается), «+» добавляет новое, а файлы можно бросить в окно.
 const editor = useEditor();
 const { t } = useI18n();
+const { commands } = useEditorCommands();
 
 const nodes = computed(() => {
     void editor.projectRevision; // файлы проекта меняются мимо реактивности: перестраиваем по счётчику
@@ -23,16 +27,72 @@ const open = computed(() => {
     walk(nodes.value);
     return [...new Set([...all, ...expanded.value])];
 });
+
+// выбранным в дереве становится открытый документ (при открытии, создании, удалении открытого)
+watch(
+    () => editor.openDocId,
+    (id) => {
+        if (id !== null) ui.selectedResource = id;
+    },
+    { immediate: true },
+);
+
+const isFolder = (id: string) => id.startsWith('dir:');
+
+function onSelect(node: { id: string }) {
+    if (isFolder(node.id)) return;
+    ui.selectedResource = node.id;
+    commands.run(COMMAND.resourceOpen); // у картинки команда недоступна: она только выбирается
+}
+
+function onKeydown(event: KeyboardEvent) {
+    if (event.key === 'F2') {
+        event.preventDefault();
+        commands.run(COMMAND.resourceRename);
+    } else if (event.key === 'Delete') {
+        event.preventDefault();
+        commands.run(COMMAND.resourceDelete);
+    }
+}
+
+/** Меню «+»: то, что добавляет в проект. Строится из реестра, поэтому следует за языком и состоянием. */
+const addMenu = computed(() => commands.toMenu([COMMAND.newEffect, COMMAND.newMaterial, '-', COMMAND.import]));
+
+/** Меню строки: переименовать и удалить; выбор переносится на строку, потому что команды работают на выбранном. */
+const rowMenu = computed(() => [
+    { id: COMMAND.resourceRename, label: t('project.rename') },
+    { id: COMMAND.resourceDelete, label: t('project.delete') },
+]);
+function onRowMenu(nodeId: string, commandId: string | number) {
+    ui.selectedResource = nodeId;
+    commands.run(String(commandId));
+}
+const run = (id: string | number) => commands.run(String(id));
 </script>
 
 <template>
-    <section class="panel">
+    <section class="panel" @keydown="onKeydown">
         <header>
             <span class="title">{{ t('shell.project') }}</span>
             <span class="name" :title="editor.projectName">{{ editor.projectName || t('file.untitled') }}</span>
+            <TaoDropdownMenu :items="addMenu" :menu-label="t('project.add')" @select="run">
+                <template #icon><TaoIcon name="tao-plus" /></template>
+            </TaoDropdownMenu>
         </header>
         <div class="body">
-            <TaoTree v-if="nodes.length" :nodes="nodes" :expanded="open" :selected="editor.openDocId" :aria-label="t('shell.project')" @update:expanded="expanded = $event" />
+            <TaoTree
+                v-if="nodes.length"
+                :nodes="nodes"
+                :expanded="open"
+                :selected="ui.selectedResource"
+                :aria-label="t('shell.project')"
+                @update:expanded="expanded = $event"
+                @select="onSelect"
+            >
+                <template #actions="{ node }">
+                    <TaoDropdownMenu v-if="!isFolder(node.id)" :items="rowMenu" size="small" :menu-label="t('project.actions')" @select="(id) => onRowMenu(node.id, id)" />
+                </template>
+            </TaoTree>
             <TaoEmpty v-else :title="t('shell.emptyTitle')">{{ t('shell.emptyProject') }}</TaoEmpty>
             <p v-if="editor.openDocId === null" class="hint">{{ t('shell.notInProject') }}</p>
         </div>
@@ -51,10 +111,9 @@ const open = computed(() => {
 
 header {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
     gap: 8px;
-    padding: 8px 12px 4px;
+    padding: 6px 8px 2px 12px;
 }
 
 .title {
@@ -66,9 +125,12 @@ header {
 }
 
 .name {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     color: var(--tao-color-text-strong, #fff);
     font-size: 12px;
+    text-align: right;
     text-overflow: ellipsis;
     white-space: nowrap;
 }

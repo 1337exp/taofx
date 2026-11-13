@@ -7,6 +7,7 @@ import { downloadText } from '@1337exp/taoux/file';
 import type { TaoCommandItem } from '@1337exp/taoui';
 import { nextTick } from 'vue';
 import type { LocaleCode, MessageArgs, MessageKey } from '@/i18n';
+import type { Resource } from '@/project/project';
 import { FILE_NAME } from './file';
 import type { Layout } from './layout';
 import type { usePreviewState } from './state/preview';
@@ -18,6 +19,10 @@ type PreviewState = ReturnType<typeof usePreviewState>;
 /** Состояние интерфейса, которое не часть ни документа, ни раскладки: открыта ли палитра. */
 export interface UiState {
     paletteOpen: boolean;
+    /** Выбранный в дереве проекта ресурс: на нём работают «Открыть», «Переименовать», «Удалить». */
+    selectedResource: string | null;
+    /** Ресурс, чьё имя сейчас правят в окне переименования; null: окно закрыто. */
+    renameId: string | null;
 }
 
 /** От чего зависят команды: хранилища и то, что делает браузер. Подменяется в тестах. */
@@ -34,6 +39,10 @@ export interface CommandDeps {
     confirmDiscard: () => Promise<boolean>;
     /** Показать выбор файла и отдать выбранный `editor.openFile`. */
     pickFile: () => void;
+    /** Показать выбор файлов и добавить их в проект (`editor.importFiles`). */
+    pickFiles: () => void;
+    /** Спросить, удалять ли ресурс (с перечнем тех, кто на него ссылается). */
+    confirmDelete: (resource: Resource, referrers: Resource[]) => Promise<boolean>;
 }
 
 /** Id команд: на них ссылаются меню, кнопки и тесты. */
@@ -42,6 +51,12 @@ export const COMMAND = {
     open: 'open',
     save: 'save',
     export: 'export',
+    newEffect: 'project.newEffect',
+    newMaterial: 'project.newMaterial',
+    import: 'project.import',
+    resourceOpen: 'resource.open',
+    resourceRename: 'resource.rename',
+    resourceDelete: 'resource.delete',
     undo: 'undo',
     redo: 'redo',
     viewPreview: 'view.preview',
@@ -61,13 +76,42 @@ const langId = (code: LocaleCode) => `lang.${code}`;
 export function createEditorCommands(deps: CommandDeps) {
     const { editor, preview, layout, ui, t } = deps;
     const hasSystem = () => editor.system !== null;
+    /** Выбранный в дереве ресурс (дерево следит за проектом по счётчику, команды тоже). */
+    const selected = () => {
+        void editor.projectRevision;
+        return ui.selectedResource === null ? undefined : editor.project.find(ui.selectedResource);
+    };
 
     const list: Command[] = [
         // файл
-        { id: COMMAND.new, label: () => t('file.new'), run: () => void deps.confirmDiscard().then((ok) => ok && editor.newProject()) },
+        { id: COMMAND.new, label: () => t('file.newGraph'), run: () => void deps.confirmDiscard().then((ok) => ok && editor.newProject()) },
         { id: COMMAND.open, label: () => t('commands.open'), shortcut: 'Mod+O', run: () => void deps.confirmDiscard().then((ok) => ok && deps.pickFile()) },
         { id: COMMAND.save, label: () => t('file.save'), shortcut: 'Mod+S', run: () => void editor.saveProject() },
         { id: COMMAND.export, label: () => t('commands.exportJson'), shortcut: 'Mod+E', run: () => downloadText(FILE_NAME, editor.exportText()) },
+        // проект
+        { id: COMMAND.newEffect, label: () => t('project.newEffect'), run: () => void editor.createDocument('effect') },
+        { id: COMMAND.newMaterial, label: () => t('project.newMaterial'), run: () => void editor.createDocument('material') },
+        { id: COMMAND.import, label: () => t('project.import'), run: () => deps.pickFiles() },
+        {
+            id: COMMAND.resourceOpen,
+            label: () => t('file.open'),
+            enabled: () => selected()?.type === 'doc' && (selected()!.kind === 'effect' || selected()!.kind === 'material'),
+            run: () => void editor.openDocument(selected()!.id),
+        },
+        { id: COMMAND.resourceRename, label: () => t('project.rename'), enabled: () => selected() !== undefined, run: () => (ui.renameId = ui.selectedResource) },
+        {
+            id: COMMAND.resourceDelete,
+            label: () => t('project.delete'),
+            enabled: () => selected() !== undefined,
+            run: async () => {
+                const resource = selected();
+                if (!resource) return;
+                if (await deps.confirmDelete(resource, editor.referrersOf(resource.id))) {
+                    editor.deleteResource(resource.id, true);
+                    if (ui.selectedResource === resource.id) ui.selectedResource = editor.openDocId; // выбор возвращается на открытый документ
+                }
+            },
+        },
         // правка
         ...historyCommands({ canUndo: () => editor.canUndo, canRedo: () => editor.canRedo, undo: () => editor.undo(), redo: () => editor.redo() }, { labels: { undo: () => t('history.undo'), redo: () => t('history.redo') } }),
         // вид
@@ -101,8 +145,8 @@ export function createEditorCommands(deps: CommandDeps) {
 
     /** Раскладка меню: она же порядок и группы в палитре. */
     const layoutOfMenu = (): MenuLayout => [
-        { id: 'menu.file', label: () => t('commands.file'), items: [COMMAND.new, COMMAND.open, COMMAND.save, '-', COMMAND.export] },
-        { id: 'menu.edit', label: () => t('commands.edit'), items: [COMMAND.undo, COMMAND.redo] },
+        { id: 'menu.file', label: () => t('commands.file'), items: [COMMAND.new, COMMAND.open, COMMAND.save, '-', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, '-', COMMAND.export] },
+        { id: 'menu.edit', label: () => t('commands.edit'), items: [COMMAND.undo, COMMAND.redo, '-', COMMAND.resourceRename, COMMAND.resourceDelete] },
         {
             id: 'menu.view',
             label: () => t('commands.view'),
@@ -148,7 +192,17 @@ export function createEditorCommands(deps: CommandDeps) {
         return items;
     };
 
-    return { commands, menu, paletteItems };
+    /** Файлы, брошенные в окно: `.taofx` открывается (после подтверждения), остальное добавляется в проект. */
+    async function dropFiles(files: readonly File[]) {
+        const project = files.find((f) => /.taofx$/i.test(f.name));
+        if (project) {
+            if (await deps.confirmDiscard()) await editor.openFile(project);
+            return;
+        }
+        await editor.importFiles(files);
+    }
+
+    return { commands, menu, paletteItems, dropFiles };
 }
 
 export type EditorCommands = ReturnType<typeof createEditorCommands>;

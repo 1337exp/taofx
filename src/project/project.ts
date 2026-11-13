@@ -247,7 +247,9 @@ function build(files: Files, initial: Manifest, kinds: Kinds): Project {
 
     const docText = (kind: DocKind, id: string, body: Body) => {
         const { format: _f, version: _v, id: _i, ...rest } = body;
-        return JSON.stringify({ format: kind.format, version: kind.version, id, ...rest }, null, 2) + '\n';
+        // ключи тела по алфавиту: один и тот же документ даёт один и тот же текст, откуда бы ни собрали тело (иначе «без изменений» не узнать)
+        const sorted = Object.fromEntries(Object.entries(rest).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+        return JSON.stringify({ format: kind.format, version: kind.version, id, ...sorted }, null, 2) + '\n';
     };
 
     const project: Project = {
@@ -323,7 +325,8 @@ function build(files: Files, initial: Manifest, kinds: Kinds): Project {
             if (kind.type !== 'doc') throw new ProjectError('unknownKind', resource.kind);
             const bad = kind.check(body);
             if (bad) throw new ProjectError('invalidDoc', bad);
-            files.write(resource.path, docText(kind, id, body));
+            const text = docText(kind, id, body);
+            if (files.text(resource.path) !== text) files.write(resource.path, text); // тот же текст не пишем: «не сохранено» не от пустого
         },
         importSettings(id) {
             const resource = current().byId.get(id);

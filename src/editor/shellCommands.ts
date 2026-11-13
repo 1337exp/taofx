@@ -29,6 +29,19 @@ export function useEditorCommands(): EditorCommands {
         input.click();
     }
 
+    /** То же для нескольких файлов: они попадают в проект (картинки ассетами, `.json` документами). */
+    function pickFiles() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = '.png,.jpg,.jpeg,.gif,.webp,.json,image/*,application/json';
+        input.addEventListener('change', () => {
+            const files = [...(input.files ?? [])];
+            if (files.length) void editor.importFiles(files);
+        });
+        input.click();
+    }
+
     shared = createEditorCommands({
         editor,
         preview: usePreviewState(),
@@ -40,6 +53,12 @@ export function useEditorCommands(): EditorCommands {
         languages: LOCALE_CODES.map((code) => ({ code, name: LOCALE_NAMES[code] })),
         confirmDiscard: async () => !editor.dirty || confirm(t('file.discardTitle')).message(t('file.discardMessage')).danger().ok(t('file.discard')),
         pickFile,
+        pickFiles,
+        confirmDelete: (resource, referrers) => {
+            const name = resource.path.slice(resource.path.lastIndexOf('/') + 1);
+            const used = referrers.length ? t('project.deleteUsed', [referrers.map((r) => r.path.slice(r.path.lastIndexOf('/') + 1)).join(', ')]) + ' ' : '';
+            return Promise.resolve(confirm(t('project.deleteTitle', [name])).message(used + t('project.deleteFinal')).danger().ok(t('project.deleteOk')));
+        },
     });
     return shared;
 }

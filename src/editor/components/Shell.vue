@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { TaoSplit } from '@1337exp/taoui';
+import { ref } from 'vue';
 import { useI18n } from '@/i18n';
 import { layout } from '../layout';
 import { useEditor } from '../store';
@@ -7,6 +8,8 @@ import CenterColumn from './CenterColumn.vue';
 import InspectorPanel from './InspectorPanel.vue';
 import LayersPanel from './LayersPanel.vue';
 import ProjectPanel from './ProjectPanel.vue';
+import RenameDialog from './RenameDialog.vue';
+import { useEditorCommands } from '../shellCommands';
 import StatusBar from './StatusBar.vue';
 import Toolbar from './Toolbar.vue';
 
@@ -14,10 +17,26 @@ import Toolbar from './Toolbar.vue';
 // нижней панелью, справа «Инспектор», внизу статус-строка. Размеры областей запоминаются (`layout`).
 const editor = useEditor();
 const { t } = useI18n();
+const { dropFiles } = useEditorCommands();
+
+// Файлы можно бросить в любое место окна: картинки и `.json` попадают в проект, `.taofx` открывается. Без этого браузер
+// ушёл бы на брошенный файл, потеряв проект. Счётчик нужен, потому что dragenter и dragleave приходят от каждого вложенного элемента.
+const dragDepth = ref(0);
+const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+function onDragEnter(e: DragEvent) {
+    if (hasFiles(e)) dragDepth.value++;
+}
+function onDragLeave(e: DragEvent) {
+    if (hasFiles(e) && dragDepth.value > 0) dragDepth.value--;
+}
+function onDrop(e: DragEvent) {
+    dragDepth.value = 0;
+    if (hasFiles(e)) void dropFiles([...(e.dataTransfer?.files ?? [])]);
+}
 </script>
 
 <template>
-    <div class="shell">
+    <div class="shell" @dragenter.prevent="onDragEnter" @dragover.prevent @dragleave="onDragLeave" @drop.prevent="onDrop">
         <Toolbar />
         <TaoSplit v-model="layout.left" class="main" :min="8" :max="40" :min-end="40" @change="(v: number) => (layout.left = v)">
             <template #start>
@@ -34,6 +53,8 @@ const { t } = useI18n();
             </template>
         </TaoSplit>
         <StatusBar />
+        <RenameDialog />
+        <div v-if="dragDepth > 0" class="drop" aria-hidden="true">{{ t('project.dropHint') }}</div>
         <p v-if="editor.notice" class="notice" :class="editor.notice.kind" role="status">{{ t(editor.notice.key, editor.notice.args) }}</p>
     </div>
 </template>
@@ -71,6 +92,22 @@ const { t } = useI18n();
     color: var(--tao-color-text, #d6d9de);
     font-size: 13px;
     transform: translateX(-50%);
+}
+
+/* Пока над окном тянут файл: подсказка поверх всего, события мыши она не ловит */
+.drop {
+    position: absolute;
+    inset: 8px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--tao-color-accent, #f0b04a);
+    border-radius: var(--tao-radius-panel, 12px);
+    background: var(--tao-color-overlay, rgba(0, 0, 0, 0.55));
+    color: var(--tao-color-text-strong, #fff);
+    font-size: 16px;
+    pointer-events: none;
 }
 
 .notice.error {

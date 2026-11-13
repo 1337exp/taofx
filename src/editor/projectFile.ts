@@ -7,7 +7,10 @@ import type { LoadError } from '@/graph/serialize';
 import type { Graph, SavedView } from '@/graph/types';
 import { serializeParticles } from '@/particles/serialize';
 import type { SystemDef } from '@/particles/types';
-import { extname, join, pathProblem, stem, uniquePath } from '@/project/paths';
+import { DEMO_GRAPH } from '@/demo';
+import { DEMO_PARTICLES } from '@/demoParticles';
+import { defaultSystem } from '@/particles/serialize';
+import { dirname, extname, join, pathProblem, stem, uniquePath } from '@/project/paths';
 import type { Body } from '@/project/kinds';
 import type { Project, Resource } from '@/project/project';
 import { emptyDoc, parseDoc, withUsedTextures, type EditorDoc } from './doc';
@@ -92,8 +95,12 @@ function mainDocument(project: Project): Resource | undefined {
  * дальше документ разбирается тем же строгим разбором, что и файл рантайма. В проекте без эффекта и материала открывается
  * пустой документ (его сохранение создаст файл).
  */
-export function loadProjectDoc(project: Project, registry: Registry): LoadDocResult {
-    const resource = mainDocument(project);
+export function loadProjectDoc(project: Project, registry: Registry, docId?: string): LoadDocResult {
+    const wanted = docId === undefined ? undefined : project.find(docId);
+    if (docId !== undefined && (!wanted || wanted.type !== 'doc' || (wanted.kind !== 'effect' && wanted.kind !== 'material'))) {
+        return { ok: false, error: { code: 'invalidStructure', detail: docId } };
+    }
+    const resource = wanted ?? mainDocument(project);
     if (!resource) return { ok: true, loaded: { doc: emptyDoc(), link: emptyLink(), dropped: 0, missingAssets: 0 } };
 
     const body = project.readDoc(resource.id)!.body;
@@ -158,6 +165,9 @@ export function saveProjectDoc(project: Project, doc: EditorDoc, view: SavedView
     const existing = link.docId ? project.find(link.docId) : undefined;
 
     if (existing && existing.kind === kind) {
+        // Один лишь сдвиг камеры не повод переписывать документ: вид остаётся прежним, пока не изменилось что-то ещё
+        const before = project.readDoc(existing.id)!.body;
+        if (before.view !== undefined && sameExceptView(before, body)) body.view = before.view;
         project.writeDoc(existing.id, body);
     } else {
         const slug = slugOf(nameHint, kind);
@@ -170,7 +180,7 @@ export function saveProjectDoc(project: Project, doc: EditorDoc, view: SavedView
             dir = existing.path.startsWith(DIRS[oldKind] + '/') ? DIRS[kind] : existing.path.slice(0, Math.max(0, existing.path.lastIndexOf('/')));
             project.remove(existing.id, { force: true });
         }
-        const path = uniquePath(join(dir, base + SUFFIXES[kind]), (p) => project.files.has(p));
+        const path = uniqueDocPath(dir, base, SUFFIXES[kind], (p) => project.files.has(p));
         next.docId = project.addDoc(path, kind, body, existing ? { id: existing.id } : undefined).id;
     }
 
@@ -179,4 +189,53 @@ export function saveProjectDoc(project: Project, doc: EditorDoc, view: SavedView
         if (!Object.values(next.textureAssets).includes(id) && project.find(id)) project.remove(id); // без force: пока на картинку ссылается другой документ, она остаётся
     }
     return next;
+}
+
+/** Равны ли тела документа во всём, кроме вида камеры (порядок ключей в файле от порядка в теле не зависит). */
+function sameExceptView(a: Body, b: Body): boolean {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    keys.delete('view');
+    return [...keys].every((key) => JSON.stringify(a[key]) === JSON.stringify(b[key]));
+}
+
+/** Свободный путь документа: `имя.fx.json`, `имя 2.fx.json`, `имя 3.fx.json` (расширение двойное, поэтому не `uniquePath`). */
+function uniqueDocPath(dir: string, base: string, suffix: string, taken: (path: string) => boolean): string {
+    for (let n = 1; ; n++) {
+        const path = join(dir, n === 1 ? base + suffix : `${base} ${n}${suffix}`);
+        if (!taken(path)) return path;
+    }
+}
+
+/** Новый документ из заготовки: эффект (фонтан мягких пятен) или материал (стартовый граф). */
+export function newDocument(kind: 'effect' | 'material'): EditorDoc {
+    if (kind === 'effect') return { graph: JSON.parse(JSON.stringify(DEMO_PARTICLES.graph)), system: defaultSystem() };
+    return { graph: JSON.parse(JSON.stringify(DEMO_GRAPH)), system: null };
+}
+
+/** Что в имени файла ресурса можно переименовать: без папки и без расширения (у документа это `.fx.json` или `.mat.json`). */
+export function renamableName(resource: Pick<Resource, 'path' | 'type'>): string {
+    return stem(resource.path).replace(/.(fx|mat)$/, '');
+}
+
+function suffixOf(resource: Pick<Resource, 'path' | 'type'>): string {
+    if (resource.type === 'asset') return extname(resource.path);
+    return /.(fx|mat).json$/.exec(resource.path)?.[0] ?? '.json';
+}
+
+/**
+ * Новый путь ресурса при переименовании: папка и расширение (`.png`, `.fx.json`) остаются, меняется имя. Имя с лишним
+ * расширением (`boom.fx.json`) принимается без него. null: имя пустое, с косой чертой или такое, что путь недопустим.
+ */
+export function renamedPath(resource: Pick<Resource, 'path' | 'type'>, name: string): string | null {
+    const suffix = suffixOf(resource);
+    let base = name.trim();
+    if (base.toLowerCase().endsWith(suffix.toLowerCase())) base = base.slice(0, base.length - suffix.length).trim();
+    if (base === '' || /[\/]/.test(base) || /[. ]$/.test(base)) return null;
+    const path = join(dirname(resource.path), base + suffix);
+    return pathProblem(path) || path.endsWith('.meta.json') ? null : path;
+}
+
+/** Имя файла картинки при импорте: без знаков, которых нет в именах на Windows, расширение в нижнем регистре. */
+export function assetNameOf(fileName: string): string {
+    return fileStem(stem(fileName)) + extname(fileName).toLowerCase();
 }

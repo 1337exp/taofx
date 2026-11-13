@@ -14,7 +14,7 @@ const t = ((key: string) => key) as CommandDeps['t'];
 function setup(overrides: Partial<CommandDeps> = {}) {
     const editor = useEditor();
     const layout = reactive({ ...DEFAULT_LAYOUT });
-    const ui = reactive({ paletteOpen: false });
+    const ui = reactive({ paletteOpen: false, selectedResource: null as string | null, renameId: null as string | null });
     let locale: LocaleCode = 'ru';
     const confirmDiscard = vi.fn(async () => true);
     const pickFile = vi.fn();
@@ -33,6 +33,8 @@ function setup(overrides: Partial<CommandDeps> = {}) {
         ],
         confirmDiscard,
         pickFile,
+        pickFiles: vi.fn(),
+        confirmDelete: vi.fn(async () => true),
         ...overrides,
     };
     return { ...createEditorCommands(deps), deps, editor, layout, ui, confirmDiscard, pickFile, setLocale };
@@ -65,7 +67,8 @@ describe('реестр команд редактора', () => {
         const { menu } = setup();
         const tree = menu();
         expect(tree.map((m: any) => m.label)).toEqual(['commands.file', 'commands.edit', 'commands.view', 'commands.effect']);
-        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.export]);
+        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, 'separator', COMMAND.export]);
+        expect(find(tree, 'menu.edit').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.undo, COMMAND.redo, 'separator', COMMAND.resourceRename, COMMAND.resourceDelete]);
         expect(find(tree, 'menu.language').items.map((i: any) => i.label)).toEqual(['Русский', 'English']);
         expect(find(tree, 'menu.effect').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.fxEnable, COMMAND.fxDisable, 'separator', COMMAND.fxSample, COMMAND.fxPlay]);
     });
@@ -208,6 +211,106 @@ describe('файл', () => {
     });
 });
 
+describe('проект и ресурсы', () => {
+    it('новый эффект и материал создают документы и открывают их; «Добавить файлы» просит выбор файлов', () => {
+        const { commands, editor, deps } = setup();
+        commands.run(COMMAND.newEffect);
+        expect(editor.system).not.toBeNull();
+        commands.run(COMMAND.newMaterial);
+        expect(editor.system).toBeNull();
+        expect(editor.project.resources.map((r) => r.kind).sort()).toEqual(['effect', 'material']);
+        commands.run(COMMAND.import);
+        expect(deps.pickFiles).toHaveBeenCalledOnce();
+    });
+
+    it('команды над ресурсом доступны, только когда он выбран', () => {
+        const { commands, editor, ui } = setup();
+        for (const id of [COMMAND.resourceOpen, COMMAND.resourceRename, COMMAND.resourceDelete]) expect(commands.isEnabled(id), id).toBe(false);
+        const id = editor.createDocument('effect')!;
+        ui.selectedResource = id;
+        for (const cmd of [COMMAND.resourceOpen, COMMAND.resourceRename, COMMAND.resourceDelete]) expect(commands.isEnabled(cmd), cmd).toBe(true);
+        ui.selectedResource = 'нет';
+        expect(commands.isEnabled(COMMAND.resourceRename)).toBe(false);
+    });
+
+    it('«Открыть» у картинки недоступно, у документа открывает его', async () => {
+        const { commands, editor, ui } = setup();
+        const a = editor.createDocument('effect')!;
+        editor.createDocument('material');
+        await editor.importFiles([new File([Uint8Array.of(1)], 'x.png')]);
+        ui.selectedResource = editor.project.resources.find((r) => r.kind === 'image')!.id;
+        expect(commands.isEnabled(COMMAND.resourceOpen)).toBe(false);
+        ui.selectedResource = a;
+        commands.run(COMMAND.resourceOpen);
+        expect(editor.openDocId).toBe(a);
+    });
+
+    it('«Переименовать» открывает окно переименования для выбранного', () => {
+        const { commands, editor, ui } = setup();
+        ui.selectedResource = editor.createDocument('effect')!;
+        commands.run(COMMAND.resourceRename);
+        expect(ui.renameId).toBe(ui.selectedResource);
+    });
+
+    it('«Удалить» спрашивает с перечнем ссылающихся: отказ ничего не удаляет, согласие удаляет и снимает выбор', async () => {
+        const confirmDelete = vi.fn(async () => false);
+        const { commands, editor, ui } = setup({ confirmDelete });
+        const keep = editor.createDocument('effect')!;
+        const gone = editor.createDocument('material')!;
+        ui.selectedResource = gone;
+        commands.run(COMMAND.resourceDelete);
+        await flush();
+        expect(confirmDelete).toHaveBeenCalledOnce();
+        expect((confirmDelete.mock.calls[0] as any)[0]).toMatchObject({ id: gone });
+        expect((confirmDelete.mock.calls[0] as any)[1]).toEqual([]);
+        expect(editor.project.find(gone)).toBeDefined();
+
+        confirmDelete.mockResolvedValueOnce(true);
+        commands.run(COMMAND.resourceDelete);
+        await flush();
+        expect(editor.project.find(gone)).toBeUndefined();
+        expect(ui.selectedResource).toBe(keep);
+        expect(editor.openDocId).toBe(keep);
+    });
+
+    it('при удалении картинки подтверждение получает ссылающихся, а согласие удаляет её', async () => {
+        const confirmDelete = vi.fn(async () => true);
+        const { commands, editor, ui } = setup({ confirmDelete });
+        const legacy = JSON.parse(editor.exportText());
+        legacy.graph.nodes.tex = { id: 'tex', type: 'input/texture', x: 0, y: 300, values: {}, params: { texture: 'sheet' } };
+        legacy.graph.textures = { sheet: { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' } };
+        await editor.openFile(new File([JSON.stringify(legacy)], 'with-texture.json'));
+        editor.syncDocument();
+        const image = editor.project.resources.find((r) => r.kind === 'image')!;
+        const doc = editor.project.resources.find((r) => r.type === 'doc')!;
+
+        ui.selectedResource = image.id;
+        commands.run(COMMAND.resourceDelete);
+        await flush();
+        expect((confirmDelete.mock.calls[0] as any)[1].map((r: any) => r.id)).toEqual([doc.id]);
+        expect(editor.project.find(image.id)).toBeUndefined();
+    });
+
+    it('брошенные в окно файлы: проект .taofx открывается после подтверждения, остальное идёт в проект', async () => {
+        const { dropFiles, editor, confirmDiscard } = setup();
+        const open = vi.spyOn(editor, 'openFile').mockResolvedValue();
+        const importFiles = vi.spyOn(editor, 'importFiles');
+
+        confirmDiscard.mockResolvedValueOnce(false);
+        await dropFiles([new File([Uint8Array.of(1)], 'a.taofx'), new File([Uint8Array.of(2)], 'b.png')]);
+        expect(open).not.toHaveBeenCalled();
+        expect(importFiles).not.toHaveBeenCalled();
+
+        await dropFiles([new File([Uint8Array.of(1)], 'A.TAOFX'), new File([Uint8Array.of(2)], 'b.png')]);
+        expect(open).toHaveBeenCalledOnce();
+        expect(importFiles).not.toHaveBeenCalled();
+
+        await dropFiles([new File([Uint8Array.of(2)], 'b.png')]);
+        expect(importFiles).toHaveBeenCalledOnce();
+        expect(editor.project.resources.map((r) => r.path)).toEqual(['textures/b.png']);
+    });
+});
+
 describe('палитра и язык', () => {
     it('команда палитры открывает палитру (повторный вызов её не закрывает)', () => {
         const { commands, ui } = setup();
@@ -230,7 +333,7 @@ describe('палитра и язык', () => {
         const { paletteItems } = setup();
         const items = paletteItems();
         const ids = items.map((i) => i.id);
-        expect(ids.slice(0, 5)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.export, COMMAND.undo]);
+        expect(ids.slice(0, 7)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, COMMAND.export]);
         expect(items.find((i) => i.id === COMMAND.save)).toMatchObject({ label: 'file.save', group: 'commands.file', shortcut: 'Ctrl+S', disabled: false });
         expect(items.find((i) => i.id === COMMAND.undo)).toMatchObject({ group: 'commands.edit', disabled: true });
         expect(items.find((i) => i.id === 'lang.en')).toMatchObject({ group: 'commands.view', label: 'English' });
