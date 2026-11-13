@@ -5,14 +5,16 @@ import { createDocumentSession, type SessionNotice } from '@1337exp/taoux/sessio
 import type { SavedStorage } from '@1337exp/taoux/storage';
 import { looksLikeZip } from '@1337exp/taoux/zip';
 import { defineStore } from 'pinia';
-import { computed, markRaw, ref, shallowRef } from 'vue';
+import { computed, markRaw, ref, shallowRef, watch } from 'vue';
 import { DEMO_GRAPH } from '@/demo';
 import type { SystemDef } from '@/particles/types';
 import { emptyDoc, parseDoc, serializeDoc, type EditorDoc } from './doc';
 import { packProject, PROJECT_EXTENSION, PROJECT_MIME, unpackProject } from '@/project/archive';
 import { createProject, type Project } from '@/project/project';
 import { emptyLink, loadProjectDoc, saveProjectDoc, type ProjectLink } from './projectFile';
+import { layout } from './layout';
 import { useProjectDocs } from './state/projectDocs';
+import { useTabs } from './state/tabs';
 import { resolveTypes, type GraphError } from '@/graph/resolve';
 import type { Graph, PinRef } from '@/graph/types';
 import type { MessageKey } from '@/i18n';
@@ -186,6 +188,7 @@ export const useEditor = defineStore('editor', () => {
     function newProject() {
         useProject(createProject(), emptyLink());
         session.load(emptyDoc(), { x: 0, y: 0, z: 1 }, true);
+        tabsApi.reset();
         pristine = true;
         graphFitPending.value = true;
         showNotice('info', 'file.newGraph');
@@ -203,6 +206,8 @@ export const useEditor = defineStore('editor', () => {
         useProject(unpacked.project, docLink);
         pristine = docLink.docId === null; // проект без документов открывается пустой заготовкой
         session.load(doc, view, true);
+        tabsApi.reset();
+        if (docLink.docId !== null) tabsApi.add(docLink.docId);
         showOpened(Object.keys(doc.graph.nodes).length, dropped, unpacked.project.problems.length + missingAssets);
     }
 
@@ -213,6 +218,9 @@ export const useEditor = defineStore('editor', () => {
         useProject(createProject({ name: name === 'taofx' ? '' : name }), emptyLink());
         pristine = false;
         session.load(parsed.doc, parsed.view, true);
+        tabsApi.reset();
+        docs.sync(); // открытый файл сразу становится документом проекта (и получает вкладку), но проект от этого не «грязный»
+        filesDirty.value = false;
         showOpened(Object.keys(parsed.doc.graph.nodes).length, parsed.dropped, 0);
     }
 
@@ -235,6 +243,7 @@ export const useEditor = defineStore('editor', () => {
             p.markSaved();
             filesDirty.value = false;
             session.markSaved();
+            tabsApi.markSaved();
             openDocId.value = link.docId;
             projectRevision.value++;
             showNotice('info', 'file.saved');
@@ -248,6 +257,27 @@ export const useEditor = defineStore('editor', () => {
     /** Открытый документ это нетронутая заготовка: демо при запуске или пустой после «Новый проект». Открытие и создание документа это снимают. */
     let pristine = true;
 
+    /** Вкладки открытых документов; у каждой своя история, камера, вид и время, пока документ не на экране. */
+    const tabsApi = useTabs({
+        saveHistory: () => session.saveHistory(),
+        restoreHistory: (history) => session.restoreHistory(history),
+        getCamera: () => camera.value,
+        setCamera: (c) => (camera.value = { ...c }),
+        getView: () => layout.view,
+        setView: (view) => (layout.view = view),
+        getTime: () => particles.playback.time,
+        seek: (time) => particles.seek(time),
+        getDirty: () => session.dirty.value,
+        setDirty: (value) => (session.dirty.value = value),
+    });
+    // правка предпросмотра закрепляет его вкладку: документ, который правят, не должен исчезнуть при следующем предпросмотре
+    watch(
+        () => session.dirty.value,
+        (changed) => {
+            if (changed && openDocId.value !== null) tabsApi.pin(openDocId.value);
+        },
+    );
+
     const docs = useProjectDocs({
         registry,
         project,
@@ -260,6 +290,8 @@ export const useEditor = defineStore('editor', () => {
             session.load(doc, view ?? { x: 0, y: 0, z: 1 }, true);
             fitSoon();
         },
+        tabs: tabsApi,
+        keepCamera: () => (graphFitPending.value = false),
         openDocId,
         projectRevision,
         notify: showNotice,
@@ -355,6 +387,15 @@ export const useEditor = defineStore('editor', () => {
         saveProject,
         /** Документы проекта: открыть, создать, переименовать, удалить, добавить файлы (см. `state/projectDocs`). */
         openDocument: docs.openDocument,
+        closeTab: docs.closeTab,
+        closeOtherTabs: docs.closeOtherTabs,
+        closeAllTabs: docs.closeAllTabs,
+        /** Вкладки открытых документов (порядок, предпросмотр, «не сохранено» у тех, что не на экране). */
+        tabs: tabsApi.tabs,
+        pinTab: tabsApi.pin,
+        moveTab: tabsApi.move,
+        /** Есть правки открытого документа, не записанные в файл проекта. */
+        docDirty: session.dirty,
         createDocument: docs.createDocument,
         renameResource: docs.renameResource,
         deleteResource: docs.deleteResource,

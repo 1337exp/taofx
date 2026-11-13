@@ -67,7 +67,7 @@ describe('реестр команд редактора', () => {
         const { menu } = setup();
         const tree = menu();
         expect(tree.map((m: any) => m.label)).toEqual(['commands.file', 'commands.edit', 'commands.view', 'commands.effect']);
-        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, 'separator', COMMAND.export]);
+        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, 'separator', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, 'separator', COMMAND.export]);
         expect(find(tree, 'menu.edit').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.undo, COMMAND.redo, 'separator', COMMAND.resourceRename, COMMAND.resourceDelete]);
         expect(find(tree, 'menu.language').items.map((i: any) => i.label)).toEqual(['Русский', 'English']);
         expect(find(tree, 'menu.effect').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.fxEnable, COMMAND.fxDisable, 'separator', COMMAND.fxSample, COMMAND.fxPlay]);
@@ -311,6 +311,30 @@ describe('проект и ресурсы', () => {
     });
 });
 
+describe('вкладки', () => {
+    it('закрыть вкладку, остальные и все: доступность и действие, Alt+W на клавиатуре', () => {
+        const { commands, editor, deps } = setup();
+        for (const id of [COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll]) expect(commands.isEnabled(id), id).toBe(false);
+        const a = editor.createDocument('effect')!;
+        expect(commands.isEnabled(COMMAND.tabClose)).toBe(true);
+        expect(commands.isEnabled(COMMAND.tabCloseOthers)).toBe(false); // вкладка одна
+        expect(commands.isEnabled(COMMAND.tabCloseAll)).toBe(true);
+        const b = editor.createDocument('effect')!;
+        expect(commands.isEnabled(COMMAND.tabCloseOthers)).toBe(true);
+
+        commands.run(COMMAND.tabCloseOthers);
+        expect(editor.tabs.map((t) => t.docId)).toEqual([b]);
+        editor.openDocument(a);
+        const off = commands.bind(window);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', altKey: true, bubbles: true, cancelable: true }));
+        expect(editor.openDocId).toBe(b);
+        off();
+        commands.run(COMMAND.tabCloseAll);
+        expect(editor.tabs).toEqual([]);
+        expect(deps.editor.openDocId).toBeNull();
+    });
+});
+
 describe('палитра и язык', () => {
     it('команда палитры открывает палитру (повторный вызов её не закрывает)', () => {
         const { commands, ui } = setup();
@@ -333,7 +357,7 @@ describe('палитра и язык', () => {
         const { paletteItems } = setup();
         const items = paletteItems();
         const ids = items.map((i) => i.id);
-        expect(ids.slice(0, 7)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, COMMAND.export]);
+        expect(ids.slice(0, 10)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, COMMAND.export]);
         expect(items.find((i) => i.id === COMMAND.save)).toMatchObject({ label: 'file.save', group: 'commands.file', shortcut: 'Ctrl+S', disabled: false });
         expect(items.find((i) => i.id === COMMAND.undo)).toMatchObject({ group: 'commands.edit', disabled: true });
         expect(items.find((i) => i.id === 'lang.en')).toMatchObject({ group: 'commands.view', label: 'English' });

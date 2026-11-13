@@ -42,7 +42,15 @@ const isFolder = (id: string) => id.startsWith('dir:');
 function onSelect(node: { id: string }) {
     if (isFolder(node.id)) return;
     ui.selectedResource = node.id;
-    commands.run(COMMAND.resourceOpen); // у картинки команда недоступна: она только выбирается
+    const resource = editor.project.find(node.id);
+    editor.setSelection([]); // выбрана строка дерева: выбор нод в графе больше не главный для инспектора
+    // документ открывается предпросмотром (вкладка курсивом, её место займёт следующий предпросмотр); картинка только выбирается
+    if (resource?.type === 'doc' && (resource.kind === 'effect' || resource.kind === 'material')) editor.openDocument(node.id, true);
+}
+
+/** Двойной клик по документу закрепляет его вкладку (первый клик уже открыл и выбрал его). */
+function onDoubleClick() {
+    if (ui.selectedResource !== null) editor.pinTab(ui.selectedResource);
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -71,7 +79,7 @@ const run = (id: string | number) => commands.run(String(id));
 </script>
 
 <template>
-    <section class="panel" @keydown="onKeydown">
+    <section class="panel" @keydown="onKeydown" @dblclick="onDoubleClick">
         <header>
             <span class="title">{{ t('shell.project') }}</span>
             <span class="name" :title="editor.projectName">{{ editor.projectName || t('file.untitled') }}</span>

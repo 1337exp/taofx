@@ -54,6 +54,9 @@ export const COMMAND = {
     newEffect: 'project.newEffect',
     newMaterial: 'project.newMaterial',
     import: 'project.import',
+    tabClose: 'tab.close',
+    tabCloseOthers: 'tab.closeOthers',
+    tabCloseAll: 'tab.closeAll',
     resourceOpen: 'resource.open',
     resourceRename: 'resource.rename',
     resourceDelete: 'resource.delete',
@@ -112,6 +115,10 @@ export function createEditorCommands(deps: CommandDeps) {
                 }
             },
         },
+        // вкладки
+        { id: COMMAND.tabClose, label: () => t('commands.tabClose'), shortcut: 'Alt+W', enabled: () => editor.openDocId !== null, run: () => editor.closeTab(editor.openDocId!) },
+        { id: COMMAND.tabCloseOthers, label: () => t('commands.tabCloseOthers'), enabled: () => editor.openDocId !== null && editor.tabs.length > 1, run: () => editor.closeOtherTabs(editor.openDocId!) },
+        { id: COMMAND.tabCloseAll, label: () => t('commands.tabCloseAll'), enabled: () => editor.tabs.length > 0, run: () => editor.closeAllTabs() },
         // правка
         ...historyCommands({ canUndo: () => editor.canUndo, canRedo: () => editor.canRedo, undo: () => editor.undo(), redo: () => editor.redo() }, { labels: { undo: () => t('history.undo'), redo: () => t('history.redo') } }),
         // вид
@@ -145,7 +152,7 @@ export function createEditorCommands(deps: CommandDeps) {
 
     /** Раскладка меню: она же порядок и группы в палитре. */
     const layoutOfMenu = (): MenuLayout => [
-        { id: 'menu.file', label: () => t('commands.file'), items: [COMMAND.new, COMMAND.open, COMMAND.save, '-', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, '-', COMMAND.export] },
+        { id: 'menu.file', label: () => t('commands.file'), items: [COMMAND.new, COMMAND.open, COMMAND.save, '-', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.import, '-', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, '-', COMMAND.export] },
         { id: 'menu.edit', label: () => t('commands.edit'), items: [COMMAND.undo, COMMAND.redo, '-', COMMAND.resourceRename, COMMAND.resourceDelete] },
         {
             id: 'menu.view',

@@ -6,6 +6,7 @@ import type { MessageKey } from '@/i18n';
 import { ProjectError, type Project, type Resource } from '@/project/project';
 import { extname, join, stem, uniquePath } from '@/project/paths';
 import { emptyDoc, parseDoc, type EditorDoc } from '../doc';
+import type { Tabs } from './tabs';
 import { assetNameOf, emptyLink, loadProjectDoc, newDocument, renamedPath, saveProjectDoc, type ProjectLink } from '../projectFile';
 
 /** От чего зависят операции: хранилища и то, как документ подменяется в редакторе. */
@@ -18,8 +19,12 @@ export interface ProjectDocsDeps {
     current(): { doc: EditorDoc; view: SavedView };
     /** Открытый документ это ещё не тронутая заготовка (демо при запуске, пустой после «Новый проект»): в проект её не пишем. */
     isPristine(): boolean;
-    /** Подменяет документ редактора целиком; история сбрасывается (у каждого документа своя история придёт вкладками). */
+    /** Подменяет документ редактора целиком; история сбрасывается (её вернёт вкладка документа, если он уже был открыт). */
     show(doc: EditorDoc, view?: SavedView): void;
+    /** Вкладки открытых документов: у каждого своя история, камера, вид и время. */
+    tabs: Tabs;
+    /** Документ вернулся на экран со своей камерой: подбирать её по размеру холста уже не нужно. */
+    keepCamera(): void;
     openDocId: Ref<string | null>;
     projectRevision: Ref<number>;
     notify(kind: 'info' | 'error', key: MessageKey, args?: (string | number)[]): void;
@@ -45,11 +50,13 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
     function sync() {
         if (deps.isPristine()) return; // нетронутая заготовка не становится файлом проекта сама собой
         const { doc, view } = deps.current();
-        deps.setLink(saveProjectDoc(project.value, doc, view, deps.getLink(), project.value.manifest.name));
+        const link = saveProjectDoc(project.value, doc, view, deps.getLink(), project.value.manifest.name);
+        deps.setLink(link);
+        if (link.docId !== null && !deps.tabs.has(link.docId)) deps.tabs.add(link.docId); // документ получил файл: у него появляется вкладка (черновик был без неё); у уже открытой предпросмотр не снимается
         touch();
     }
 
-    function showLoaded(id: string | undefined): boolean {
+    function showLoaded(id: string | undefined, preview = false): boolean {
         const loaded = loadProjectDoc(project.value, deps.registry, id);
         if (!loaded.ok) {
             deps.notify('error', `file.error.${loaded.error.code}` as MessageKey, loaded.error.detail === undefined ? undefined : [loaded.error.detail]);
@@ -58,21 +65,62 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         const { doc, view, link, dropped, missingAssets } = loaded.loaded;
         deps.setLink(link);
         deps.show(doc, view);
+        if (link.docId !== null && deps.tabs.arrive(link.docId, preview)) deps.keepCamera();
         touch();
         if (dropped + missingAssets > 0) deps.notify('error', 'file.loadedWithProblems', [Object.keys(doc.graph.nodes).length, dropped + missingAssets]);
         return true;
     }
 
-    /** Открывает документ проекта в редакторе. Уже открытый остаётся как есть. */
-    function openDocument(id: string): boolean {
-        if (deps.getLink().docId === id) return true;
+    /**
+     * Открывает документ проекта в редакторе. Уже открытый остаётся как есть (а закреплённое открытие закрепляет его вкладку).
+     * `preview`: вкладка-предпросмотр, её место займёт следующий предпросмотр.
+     */
+    function openDocument(id: string, preview = false): boolean {
+        if (deps.getLink().docId === id) {
+            if (!preview) deps.tabs.pin(id);
+            return true;
+        }
         sync();
-        return showLoaded(id);
+        deps.tabs.leave(deps.getLink().docId);
+        return showLoaded(id, preview);
+    }
+
+    /** Показывает пустой документ без файла (закрыта последняя вкладка, удалён последний документ). */
+    function showEmpty() {
+        deps.setLink(emptyLink());
+        deps.show(emptyDoc(), { x: 0, y: 0, z: 1 });
+        touch();
+    }
+
+    /** Закрывает вкладку: документ остаётся в проекте. Закрытая открытая вкладка отдаёт экран соседней, а последняя пустому документу. */
+    function closeTab(id: string) {
+        if (deps.getLink().docId !== id) {
+            deps.tabs.remove(id);
+            return;
+        }
+        sync();
+        const next = deps.tabs.neighbour(id);
+        deps.tabs.remove(id);
+        if (!(next !== null && showLoaded(next))) showEmpty();
+    }
+
+    /** Оставляет открытой только эту вкладку. */
+    function closeOtherTabs(id: string) {
+        if (!openDocument(id)) return;
+        for (const tab of [...deps.tabs.tabs.value]) if (tab.docId !== id) deps.tabs.remove(tab.docId);
+    }
+
+    /** Закрывает все вкладки. */
+    function closeAllTabs() {
+        sync();
+        deps.tabs.reset();
+        showEmpty();
     }
 
     /** Новый документ в проекте из заготовки; открывается сразу. */
     function createDocument(kind: 'effect' | 'material'): string | null {
         sync();
+        deps.tabs.leave(deps.getLink().docId);
         const doc = newDocument(kind);
         const view = { x: 0, y: 0, z: 1 };
         const link = saveProjectDoc(project.value, doc, view, emptyLink(), '');
@@ -113,11 +161,13 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         const removed = project.value.remove(id, { force });
         if (!removed.ok) return removed;
         const openId = deps.getLink().docId;
+        const next = deps.tabs.neighbour(id); // соседняя вкладка займёт место закрытой
+        deps.tabs.remove(id);
         if (openId === id) {
-            // открытый документ удалён: берётся главный из оставшихся, а нет ни одного, пустой
+            // открытый документ удалён: берётся соседний по вкладкам, а нет такого, главный из оставшихся, а нет ни одного, пустой
             deps.setLink(emptyLink());
             // оставшийся не открылся (повреждён): показываем пустой документ, а не удалённый, чтобы он не воскрес при записи
-            if (!showLoaded(undefined)) deps.show(emptyDoc(), { x: 0, y: 0, z: 1 });
+            if (!(next !== null && showLoaded(next)) && !showLoaded(undefined)) deps.show(emptyDoc(), { x: 0, y: 0, z: 1 });
         } else if (openId !== null && removed.dangling.some((d) => d.id === openId)) {
             showLoaded(openId); // он ссылался на удалённую картинку: поднимается заново уже без неё
         }
@@ -175,7 +225,7 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         return project.value.referrers(id);
     }
 
-    return { sync, openDocument, createDocument, renameResource, deleteResource, importFiles, referrersOf };
+    return { sync, openDocument, createDocument, renameResource, deleteResource, importFiles, referrersOf, closeTab, closeOtherTabs, closeAllTabs };
 }
 
 export type ProjectDocs = ReturnType<typeof useProjectDocs>;

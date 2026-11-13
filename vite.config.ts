@@ -13,8 +13,8 @@ export default defineConfig({
     optimizeDeps: { entries: ['index.html'] },
     resolve: {
         alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
-        // Пакеты, слинкованные с соседних папок (@1337exp/taoux), не должны тащить вторую копию Vue.
-        dedupe: ['vue'],
+        // Пакеты, слинкованные с соседних папок (@1337exp/taoux, @1337exp/taoui), не должны тащить вторую копию Vue.
+        dedupe: ['vue', '@1337exp/taoui'],
     },
     test: {
         environment: 'node',
