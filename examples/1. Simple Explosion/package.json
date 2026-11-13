@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "make": "node make-explosion.mjs"
+    "make": "node make-bundle.mjs"
   },
   "dependencies": {
     "@1337exp/taofx": "file:../..",

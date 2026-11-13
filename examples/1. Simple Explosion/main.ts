@@ -1,5 +1,5 @@
-// Простой взрыв: файл частиц explosion.json + лист explosion-sheet.png. Клик по сцене запускает взрыв в этом месте.
-import { createPixiParticles, type PixiParticleEffect } from '@1337exp/taofx/pixi';
+// Простой взрыв: пакет из редактора (public/explosion: explosion.json и лист textures/explosion.sheet.png). Клик по сцене запускает взрыв в этом месте.
+import { createPixiParticles, fetchEffectText, type PixiParticleEffect } from '@1337exp/taofx/pixi';
 import { Application } from 'pixi.js';
 
 const SCALE = 100; // пикселей на единицу системы: размер частицы 1,92 это ячейка листа 192 px в натуральную величину
@@ -8,7 +8,8 @@ const app = new Application();
 await app.init({ resizeTo: document.getElementById('stage')!, background: 0x14121a, preference: 'webgl', antialias: true });
 document.getElementById('stage')!.appendChild(app.canvas);
 
-const source = JSON.parse(await (await fetch('./explosion.json')).text());
+// fetchEffectText сразу разрешает пути картинок пакета относительно файла эффекта
+const source = JSON.parse(await fetchEffectText('./explosion/explosion.json'));
 
 interface Running {
     fx: PixiParticleEffect;

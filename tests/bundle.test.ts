@@ -60,6 +60,17 @@ describe('пакет для игры', () => {
         expect(paths.filter((p) => p.startsWith('textures/'))).toHaveLength(project.resources.filter((r) => r.kind === 'image').length);
     });
 
+    it('две текстуры на одну картинку проекта: файл в пакете один', () => {
+        const project = createProject();
+        const asset = project.addAsset('textures/shared.png', Uint8Array.of(137, 80, 78, 71, 7));
+        const g = graph({ a: { src: 'x' }, b: { src: 'x' } });
+        (g as { textures: unknown }).textures = { a: { asset: asset.id }, b: { asset: asset.id } };
+        const doc = project.addDoc('effects/two.fx.json', 'effect', { system: defaultSystem(), graph: g });
+        const bundle = buildBundle(project, doc.id)!;
+        expect(bundle.files.map((f) => f.path)).toEqual(['two.json', 'textures/shared.png']);
+        expect(JSON.parse(new TextDecoder().decode(bundle.files[0]!.data)).material.textures).toEqual({ a: { src: 'textures/shared.png' }, b: { src: 'textures/shared.png' } });
+    });
+
     it('внешний адрес остаётся как есть и в пакет не кладётся', () => {
         const { project, id } = projectWith({ graph: graph({ remote: { src: 'https://cdn.example/a.png' } }), system: null });
         const bundle = buildBundle(project, id)!;
