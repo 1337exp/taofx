@@ -431,6 +431,11 @@ export const useEditor = defineStore('editor', () => {
         deleteResource: docs.deleteResource,
         importFiles: docs.importFiles,
         syncDocument: docs.sync,
+        /** Архив проекта в нынешнем виде, без «сохранено» и без скачивания (отладочный снимок). */
+        packSnapshot: async () => {
+            docs.sync();
+            return packProject(project.value);
+        },
         referrersOf: docs.referrersOf,
         commit,
         undo,

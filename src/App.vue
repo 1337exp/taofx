@@ -21,8 +21,24 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 
 let unbind: (() => void) | undefined;
 
+let stopSnapshot: (() => void) | undefined;
+
 onMounted(() => {
-    editor.fitView(); // при каждом запуске открыт демо-граф: ничего не хранится между запусками
+    editor.fitView(); // при каждом запуске открыт демо-граф: между запусками ничего не хранится
+    // только в разработке: проект переживает перезагрузку страницы (src/editor/debugSnapshot.ts), в сборку это не входит
+    if (import.meta.env.DEV) {
+        void import('@/editor/debugSnapshot').then(({ startDebugSnapshot }) =>
+            startDebugSnapshot({
+                dirty: () => editor.dirty,
+                revision: () => editor.projectRevision,
+                pack: () => editor.packSnapshot(),
+                tabs: () => editor.tabs.map((t) => t.docId),
+                active: () => editor.activeDocId,
+                open: (bytes) => editor.openFile(new File([bytes as BlobPart], '.taofx')),
+                show: (id) => void editor.openDocument(id),
+            }).then((stop) => (stopSnapshot = stop)),
+        );
+    }
     window.addEventListener('beforeunload', onBeforeUnload);
     // сочетания всех команд (Ctrl+S, Ctrl+K…) слушает реестр; в полях ввода он пропускает то, что нужно тексту
     unbind = commands.bind(window);
@@ -31,6 +47,7 @@ onMounted(() => {
 onUnmounted(() => {
     window.removeEventListener('beforeunload', onBeforeUnload);
     unbind?.();
+    stopSnapshot?.();
 });
 
 const onSelect = (item: TaoCommandItem) => commands.run(item.id);
