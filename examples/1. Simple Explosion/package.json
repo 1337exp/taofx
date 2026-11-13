@@ -1,0 +1,19 @@
+{
+  "name": "taofx-example-simple-explosion",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "make": "node make-explosion.mjs"
+  },
+  "dependencies": {
+    "@1337exp/taofx": "file:../..",
+    "pixi.js": "^8.23.0"
+  },
+  "devDependencies": {
+    "jpeg-js": "^0.4.4",
+    "vite": "^8.3.8"
+  }
+}

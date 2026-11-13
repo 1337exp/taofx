@@ -1,0 +1,220 @@
+{
+  "format": "taofx-particles",
+  "version": 1,
+  "system": {
+    "duration": 0.6,
+    "loop": false,
+    "seed": 7,
+    "maxParticles": 64,
+    "blend": "normal",
+    "emitter": {
+      "rate": 0,
+      "bursts": [
+        {
+          "time": 0,
+          "count": 3
+        },
+        {
+          "time": 0.08,
+          "count": 4
+        },
+        {
+          "time": 0.16,
+          "count": 4
+        },
+        {
+          "time": 0.26,
+          "count": 3
+        }
+      ],
+      "shape": {
+        "type": "point"
+      }
+    },
+    "particle": {
+      "lifetime": [
+        0.7,
+        1.1
+      ],
+      "speed": [
+        0.5,
+        2.4
+      ],
+      "size": [
+        1.7,
+        3.6
+      ],
+      "rotation": [
+        -20,
+        20
+      ],
+      "spin": [
+        -12,
+        12
+      ],
+      "gravity": [
+        0,
+        0.8,
+        0
+      ],
+      "drag": 2.2,
+      "sizeOverLife": [
+        {
+          "t": 0,
+          "v": 0.85
+        },
+        {
+          "t": 1,
+          "v": 1.2
+        }
+      ],
+      "colorOverLife": [
+        {
+          "t": 0,
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "alpha": 1
+        },
+        {
+          "t": 0.8,
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "alpha": 1
+        },
+        {
+          "t": 1,
+          "color": [
+            1,
+            1,
+            1
+          ],
+          "alpha": 0
+        }
+      ]
+    }
+  },
+  "material": {
+    "nodes": {
+      "p": {
+        "id": "p",
+        "type": "input/particle",
+        "x": 0,
+        "y": 0,
+        "values": {}
+      },
+      "f": {
+        "id": "f",
+        "type": "uv/flipbook",
+        "x": 200,
+        "y": 0,
+        "values": {
+          "columns": 6,
+          "rows": 1
+        }
+      },
+      "t": {
+        "id": "t",
+        "type": "input/texture",
+        "x": 420,
+        "y": 0,
+        "values": {},
+        "params": {
+          "texture": "sheet"
+        }
+      },
+      "m": {
+        "id": "m",
+        "type": "math/multiply",
+        "x": 640,
+        "y": 0,
+        "values": {}
+      },
+      "out": {
+        "id": "out",
+        "type": "output/surface",
+        "x": 860,
+        "y": 0,
+        "values": {}
+      }
+    },
+    "connections": [
+      {
+        "id": "1",
+        "from": {
+          "node": "p",
+          "pin": "age"
+        },
+        "to": {
+          "node": "f",
+          "pin": "phase"
+        }
+      },
+      {
+        "id": "2",
+        "from": {
+          "node": "f",
+          "pin": "uv"
+        },
+        "to": {
+          "node": "t",
+          "pin": "uv"
+        }
+      },
+      {
+        "id": "3",
+        "from": {
+          "node": "t",
+          "pin": "color"
+        },
+        "to": {
+          "node": "out",
+          "pin": "color"
+        }
+      },
+      {
+        "id": "4",
+        "from": {
+          "node": "t",
+          "pin": "alpha"
+        },
+        "to": {
+          "node": "m",
+          "pin": "a"
+        }
+      },
+      {
+        "id": "5",
+        "from": {
+          "node": "p",
+          "pin": "alpha"
+        },
+        "to": {
+          "node": "m",
+          "pin": "b"
+        }
+      },
+      {
+        "id": "6",
+        "from": {
+          "node": "m",
+          "pin": "result"
+        },
+        "to": {
+          "node": "out",
+          "pin": "opacity"
+        }
+      }
+    ],
+    "textures": {
+      "sheet": {
+        "src": "explosion-sheet.png"
+      }
+    }
+  }
+}
