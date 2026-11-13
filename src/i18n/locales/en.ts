@@ -54,6 +54,8 @@ const en: typeof ru = {
         upload: 'Upload…',
         tooLarge: 'The image is too large for an effect file',
         notImage: 'This is not an image',
+        missing: 'There is no such image in the project',
+        sheet: 'Flipbook sheet: {0} columns, {1} rows, {2} frames, {3} fps',
     },
     palette: {
         add: 'Add node',

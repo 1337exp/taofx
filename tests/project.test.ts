@@ -231,6 +231,8 @@ describe('проект: документы и ссылки', () => {
         const auto = { mode: 'auto', color: [63, 51, 63], tolerance: 2, gap: 0, minSize: 1 };
         expect(ok({ detect: grid, key: { color: [1, 2, 3], low: 6, high: 34 } })).toBe('no error');
         expect(ok({ detect: auto, key: null })).toBe('no error');
+        expect(ok({ sheet: 'abcdefgh12' })).toBe('no error');
+        expect(ok({ sheet: 5 })).toBe('invalidDoc');
         for (const detect of [5, null, {}, { mode: 'grid', cols: 0, rows: 1 }, { mode: 'grid', cols: 1, rows: 1.5 }, { mode: 'auto' }, { ...auto, color: [1, 2] }, { ...auto, color: [1, 2, 300] }, { ...auto, tolerance: 'x' }, { ...auto, gap: NaN }, { ...auto, minSize: null }, { mode: 'wrong' }]) {
             expect(ok({ detect }), JSON.stringify(detect)).toBe('invalidDoc');
         }

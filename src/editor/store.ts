@@ -11,13 +11,14 @@ import type { SystemDef } from '@/particles/types';
 import { emptyDoc, parseDoc, serializeDoc, type EditorDoc } from './doc';
 import { packProject, PROJECT_EXTENSION, PROJECT_MIME, unpackProject } from '@/project/archive';
 import { createProject, type Project } from '@/project/project';
-import { emptyLink, loadProjectDoc, saveProjectDoc, type ProjectLink } from './projectFile';
+import { emptyLink, loadProjectDoc, MIME_BY_EXT, saveProjectDoc, toDataUri, type ProjectLink } from './projectFile';
+import { extname, stem } from '@/project/paths';
 import { layout } from './layout';
 import { useFlipbooks } from './state/flipbooks';
 import { useProjectDocs } from './state/projectDocs';
 import { useTabs } from './state/tabs';
 import { resolveTypes, type GraphError } from '@/graph/resolve';
-import type { Graph, PinRef } from '@/graph/types';
+import { MAX_TEXTURE_SRC, type Graph, type PinRef } from '@/graph/types';
 import type { MessageKey } from '@/i18n';
 import { createDefaultRegistry } from '@/nodes';
 import { useConnectionDraft } from './state/connection';
@@ -353,6 +354,53 @@ export const useEditor = defineStore('editor', () => {
         setParam(nodeId, key, name);
     }
 
+    /**
+     * Выбирает в параметре ноды картинку из проекта (без копии: при сохранении она останется тем же ассетом). Картинка, которая
+     * уже подключена к графу, берётся как есть; новая кладётся в граф под именем файла. Отказ: `missing` (нет такой картинки)
+     * или `tooLarge` (в графе она не поместится: предел файла рантайма).
+     */
+    function useProjectImage(nodeId: string, key: string, assetId: string): 'ok' | 'missing' | 'tooLarge' {
+        const p = project.value;
+        const asset = p.find(assetId);
+        const bytes = asset?.kind === 'image' ? p.files.read(asset.path) : undefined;
+        const mime = asset ? MIME_BY_EXT[extname(asset.path).toLowerCase()] : undefined;
+        if (!asset || !bytes || !mime) return 'missing';
+        const textures = (graph.value.textures ??= {});
+        const linked = Object.entries(link.textureAssets).find(([name, id]) => id === assetId && name in textures)?.[0];
+        if (linked !== undefined) {
+            setParam(nodeId, key, linked);
+            return 'ok';
+        }
+        const src = toDataUri(bytes, mime);
+        if (src.length > MAX_TEXTURE_SRC) return 'tooLarge';
+        const base = stem(asset.path) || 'texture';
+        let name = base;
+        for (let i = 2; name in textures; i++) name = `${base} ${i}`;
+        textures[name] = { src };
+        link.textureAssets[name] = assetId;
+        setParam(nodeId, key, name);
+        return 'ok';
+    }
+
+    /**
+     * Картинка проекта изменилась (флипбук запёк новый лист): подключённые к графу текстуры берут новые байты. Это не правка
+     * пользователя, в историю она не попадает.
+     */
+    function refreshTextures() {
+        const textures = graph.value.textures;
+        if (textures) {
+            for (const [name, assetId] of Object.entries(link.textureAssets)) {
+                const asset = project.value.find(assetId);
+                const bytes = asset ? project.value.files.read(asset.path) : undefined;
+                const mime = asset ? MIME_BY_EXT[extname(asset.path).toLowerCase()] : undefined;
+                if (!textures[name] || !bytes || !mime) continue;
+                const src = toDataUri(bytes, mime);
+                if (src.length <= MAX_TEXTURE_SRC && textures[name]!.src !== src) textures[name] = { src };
+            }
+        }
+        projectRevision.value++;
+    }
+
     /** Мировые координаты центра пина или null, если ещё не измерен. */
     function pinWorld(ref: PinRef, dir: PinDir): [number, number] | null {
         return pins.world(graph.value.nodes[ref.node], dir, ref.pin);
@@ -419,6 +467,7 @@ export const useEditor = defineStore('editor', () => {
         flipbook: flipbooks.active,
         flipbookBody: flipbooks.bodyOf,
         updateFlipbook: flipbooks.update,
+        setFlipbookSheet: flipbooks.setSheet,
         createFlipbook: docs.createFlipbook,
         /** На экран возвращается документ сцены (флипбук остаётся открытой вкладкой). */
         showScene: flipbooks.deactivate,
@@ -455,6 +504,10 @@ export const useEditor = defineStore('editor', () => {
         setValue: recorded(setValue, (nodeId, pin) => `value:${nodeId}:${pin}`),
         setParam: recorded(setParam),
         importTexture: recorded(importTexture),
+        useProjectImage: recorded(useProjectImage),
+        /** Какая картинка проекта подключена к графу под этим именем текстуры (undefined: своя, загруженная в граф). */
+        textureAssetOf: (name: string) => link.textureAssets[name],
+        refreshTextures,
         setPinOffsets: pins.set,
         clearPinOffsets: pins.clear,
         pinWorld,

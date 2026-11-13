@@ -67,9 +67,11 @@ export const FLIPBOOK: DocKind = {
     format: 'taofx-flipbook',
     version: 1,
     create: () => ({ image: '', frames: [], fps: 12 }),
-    refs: (body) => (isId(body.image) ? [body.image] : []),
+    // картинка-источник и запечённый лист (картинка проекта, которую берут материалы)
+    refs: (body) => [body.image, body.sheet].filter(isId),
     check(body) {
         if (typeof body.image !== 'string') return 'image';
+        if (body.sheet !== undefined && typeof body.sheet !== 'string') return 'sheet';
         if (!isPositive(body.fps)) return 'fps';
         if (!Array.isArray(body.frames)) return 'frames';
         for (const [i, f] of body.frames.entries()) {

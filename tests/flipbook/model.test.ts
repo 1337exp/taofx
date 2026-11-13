@@ -49,15 +49,16 @@ describe('readKey, isRgb', () => {
 
 describe('readBody', () => {
     it('полное тело читается, кадры копируются без лишних полей', () => {
-        const raw = { image: 'abc', frames: [{ x: 1, y: 2, w: 3, h: 4, junk: 1 }], fps: 8, detect: { mode: 'grid', cols: 2, rows: 1 }, key: { color: [9, 9, 9], low: 1, high: 2 } };
+        const raw = { image: 'abc', frames: [{ x: 1, y: 2, w: 3, h: 4, junk: 1 }], fps: 8, detect: { mode: 'grid', cols: 2, rows: 1 }, key: { color: [9, 9, 9], low: 1, high: 2 }, sheet: 'sh1' };
         const body = readBody(raw);
-        expect(body).toEqual({ image: 'abc', frames: [{ x: 1, y: 2, w: 3, h: 4 }], fps: 8, detect: { mode: 'grid', cols: 2, rows: 1 }, key: { color: [9, 9, 9], low: 1, high: 2 } });
+        expect(body).toEqual({ image: 'abc', frames: [{ x: 1, y: 2, w: 3, h: 4 }], fps: 8, detect: { mode: 'grid', cols: 2, rows: 1 }, key: { color: [9, 9, 9], low: 1, high: 2 }, sheet: 'sh1' });
         expect(body.frames[0]).not.toBe(raw.frames[0]);
     });
 
     it('старое тело без настроек: значения по умолчанию', () => {
-        expect(readBody({ image: '', frames: [], fps: 12 })).toEqual({ image: '', frames: [], fps: 12, detect: DEFAULT_DETECT, key: null });
-        expect(readBody({})).toEqual({ image: '', frames: [], fps: DEFAULT_FPS, detect: DEFAULT_DETECT, key: null });
+        expect(readBody({ image: '', frames: [], fps: 12 })).toEqual({ image: '', frames: [], fps: 12, detect: DEFAULT_DETECT, key: null, sheet: '' });
+        expect(readBody({})).toEqual({ image: '', frames: [], fps: DEFAULT_FPS, detect: DEFAULT_DETECT, key: null, sheet: '' });
+        expect(readBody({ sheet: 5 }).sheet).toBe('');
         expect(readBody({ image: 5, frames: 'x', fps: -1 })).toMatchObject({ image: '', frames: [], fps: DEFAULT_FPS });
         expect(readBody({ fps: 0 }).fps).toBe(DEFAULT_FPS);
         expect(readBody({ fps: Infinity }).fps).toBe(DEFAULT_FPS);

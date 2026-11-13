@@ -19,6 +19,8 @@ export interface FlipbookBody {
     detect: Detect;
     /** Фон, который при запекании становится прозрачным; null: пиксели как есть. */
     key: BackgroundKey | null;
+    /** Id картинки проекта с запечённым листом (её выбирают материалы); пусто, пока не запечён. Производное: в историю правок не входит. */
+    sheet: string;
 }
 
 export const DEFAULT_FPS = 12;
@@ -52,6 +54,7 @@ export function readBody(raw: Record<string, unknown>): FlipbookBody {
         fps: isNum(raw.fps) && raw.fps > 0 ? raw.fps : DEFAULT_FPS,
         detect: readDetect(raw.detect),
         key: readKey(raw.key),
+        sheet: typeof raw.sheet === 'string' ? raw.sheet : '',
     };
 }
 

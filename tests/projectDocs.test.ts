@@ -322,10 +322,11 @@ describe('удаление', () => {
         const image = editor.project.resources.find((r) => r.kind === 'image')!;
         delete editor.graph.nodes.tex; // в открытом документе ноду с картинкой убрали, в файле она ещё есть
         expect(editor.referrersOf(image.id)).toEqual([]);
-        expect(editor.deleteResource(image.id, false)).toEqual({ ok: false, missing: true }); // запись уже убрала картинку как лишнюю
+        expect(editor.deleteResource(image.id, false)).toEqual({ ok: true }); // на неё никто не ссылается, спрашивать не о чем
+        expect(editor.project.find(image.id)).toBeUndefined();
     });
 
-    it('удаление записывает открытый документ и без отдельного вопроса о ссылающихся', async () => {
+    it('удаление записывает открытый документ, и убранная из него картинка удаляется без вопроса', async () => {
         const editor = useEditor();
         const legacy = JSON.parse(editor.exportText());
         legacy.graph.nodes.tex = { id: 'tex', type: 'input/texture', x: 0, y: 300, values: {}, params: { texture: 'sheet' } };
@@ -334,7 +335,8 @@ describe('удаление', () => {
         editor.syncDocument();
         const image = editor.project.resources.find((r) => r.kind === 'image')!;
         delete editor.graph.nodes.tex;
-        expect(editor.deleteResource(image.id, false)).toEqual({ ok: false, missing: true });
+        expect(editor.deleteResource(image.id, false)).toEqual({ ok: true });
+        expect(editor.project.find(image.id)).toBeUndefined();
     });
 
     it('если после удаления открытого документа оставшийся не открывается, документ отвязывается и не воскресает при записи', () => {

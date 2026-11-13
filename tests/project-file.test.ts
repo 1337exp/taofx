@@ -115,13 +115,14 @@ describe('сохранение документа в проект', () => {
         expect(p.problems).toEqual([]);
     });
 
-    it('картинка, которой больше нет в графе, уходит из проекта', () => {
+    it('картинка, которой больше нет в графе, остаётся в проекте: файлы пользователя молча не удаляются', () => {
         const p = createProject();
         const link = saveProjectDoc(p, doc({ sheet: { src: png } }), view, emptyLink());
+        const asset = link.textureAssets.sheet!;
         const again = saveProjectDoc(p, { graph: { ...materialGraph(undefined), nodes: { out: materialGraph(undefined).nodes.out! }, connections: [] }, system: null }, view, link);
         expect(again.textureAssets).toEqual({});
-        expect(p.resources.map((r) => r.kind)).toEqual(['material']);
-        expect(p.files.paths().some((f) => f.startsWith('textures/'))).toBe(false);
+        expect(p.resources.map((r) => r.kind).sort()).toEqual(['image', 'material']);
+        expect(p.find(asset)).toBeDefined();
     });
 
     it('картинка, на которую не ссылается ни одна нода, в проект не попадает', () => {

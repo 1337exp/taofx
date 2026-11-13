@@ -3,6 +3,7 @@ import { TaoButton } from '@1337exp/taoui';
 import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import { flipbookUi, useFlipbookActions } from '../flipbookActions';
+import { bakeFlipbook } from '../flipbookBake';
 import { useFlipbookImage } from '../flipbookImage';
 import { useEditor } from '../store';
 
@@ -86,6 +87,35 @@ function onUp(event: PointerEvent) {
         flipbookUi.frame = hit;
     }
 }
+
+// Запечённый лист (картинка проекта для материалов) пересобирается после правок: чуть погодя, чтобы не печь на каждый знак в поле.
+// Ушёл на другой флипбук или вкладку, и отложенное запекание выполняется сразу.
+const BAKE_DELAY = 700;
+const bakeKey = computed(() => (body.value ? JSON.stringify([editor.activeFlipbookId, body.value.image, body.value.frames, body.value.key]) : ''));
+let bakeTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingId: string | null = null;
+function flushBake() {
+    clearTimeout(bakeTimer);
+    const id = pendingId;
+    pendingId = null;
+    if (id !== null) void bakeFlipbook(id);
+}
+watch(
+    bakeKey,
+    (_now, was) => {
+        const id = editor.activeFlipbookId;
+        if (id === null) return flushBake();
+        if (pendingId !== null && pendingId !== id) flushBake(); // переключились на другой флипбук
+        // первый показ без правок: печём, только если листа ещё нет
+        const first = was === undefined;
+        if (first && body.value?.sheet && editor.project.find(body.value.sheet)) return;
+        pendingId = id;
+        clearTimeout(bakeTimer);
+        bakeTimer = setTimeout(flushBake, BAKE_DELAY);
+    },
+    { immediate: true },
+);
+onBeforeUnmount(flushBake);
 
 const zoomPercent = computed(() => Math.round(cam.value.z * 100));
 const transform = computed(() => ({ transform: `translate(${cam.value.x}px, ${cam.value.y}px) scale(${cam.value.z})` }));

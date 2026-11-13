@@ -192,7 +192,7 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         const found = init.image ? p.find(init.image) : undefined;
         const image = found?.kind === 'image' ? found : undefined; // только картинка проекта
         const base = image ? stem(image.path) : 'flipbook';
-        const body: FlipbookBody = { image: '', frames: [], fps: DEFAULT_FPS, detect: { ...DEFAULT_DETECT }, key: null, ...init };
+        const body: FlipbookBody = { image: '', frames: [], fps: DEFAULT_FPS, detect: { ...DEFAULT_DETECT }, key: null, sheet: '', ...init };
         body.image = image?.id ?? '';
         const path = uniqueDocPath('flipbooks', base, '.flip.json', (candidate) => p.files.has(candidate));
         const resource = p.addDoc(path, 'flipbook', { ...body });
@@ -227,8 +227,11 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         sync();
         const resource = project.value.find(id);
         if (!resource) return { ok: false, missing: true };
+        const sheetId = resource.kind === 'flipbook' ? project.value.readDoc(id)?.body.sheet : undefined;
         const removed = project.value.remove(id, { force });
         if (!removed.ok) return removed;
+        // запечённый лист принадлежит флипбуку: уходит с ним, если на него больше никто не ссылается (материал, взявший его, оставляет его)
+        if (typeof sheetId === 'string' && project.value.find(sheetId)) project.value.remove(sheetId);
         const openId = deps.getLink().docId;
         const watching = activeTab() === id;
         const next = deps.tabs.neighbour(id, (docId) => !deps.flipbooks.isFlipbook(docId)); // соседняя живая вкладка займёт место закрытой

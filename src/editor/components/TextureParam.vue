@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { TaoButton, TaoSelect } from '@1337exp/taoui';
 import { computed, ref } from 'vue';
+import { balancedGrid } from '@/flipbook/flipbook';
 import { MAX_TEXTURE_SRC, type NodeInstance } from '@/graph/types';
 import { useI18n } from '@/i18n';
 import { useEditor } from '../store';
@@ -12,11 +13,42 @@ const { t } = useI18n();
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const selected = computed(() => props.node.params?.[props.name] ?? null);
-const options = computed(() => Object.keys(editor.graph.textures ?? {}).map((key) => ({ value: key, label: key })));
+
+/** Значение варианта «картинка проекта, ещё не подключённая к графу»: отличается от имён текстур графа. */
+const ASSET = '';
+
+/** Текстуры графа, а за ними картинки проекта, которых в графе ещё нет (выбор подключит их без копии). */
+const options = computed(() => {
+    void editor.projectRevision;
+    const own = Object.keys(editor.graph.textures ?? {});
+    const linked = new Set(own.map((name) => editor.textureAssetOf(name)));
+    const project = editor.project.resources
+        .filter((r) => r.kind === 'image' && !linked.has(r.id))
+        .map((r) => ({ value: ASSET + r.id, label: r.path.slice(r.path.lastIndexOf('/') + 1) }));
+    return [...own.map((key) => ({ value: key, label: key })), ...project];
+});
 const preview = computed(() => (selected.value ? editor.graph.textures?.[selected.value]?.src : undefined));
 
+/** Если выбранная картинка это запечённый лист флипбука: из скольких кадров и какой сеткой (её вводят в ноду «Спрайт-лист»). */
+const sheetInfo = computed(() => {
+    void editor.projectRevision;
+    const asset = selected.value ? editor.textureAssetOf(selected.value) : undefined;
+    if (!asset) return null;
+    for (const r of editor.project.resources) {
+        if (r.kind !== 'flipbook') continue;
+        const body = editor.flipbookBody(r.id);
+        if (body?.sheet !== asset || body.frames.length === 0) continue;
+        const [cols, rows] = balancedGrid(body.frames.length);
+        return { cols, rows, count: body.frames.length, fps: body.fps };
+    }
+    return null;
+});
+
 function onSelect(value: string | number | null) {
-    if (typeof value === 'string') editor.setParam(props.node.id, props.name, value);
+    if (typeof value !== 'string') return;
+    if (!value.startsWith(ASSET)) return editor.setParam(props.node.id, props.name, value);
+    const result = editor.useProjectImage(props.node.id, props.name, value.slice(ASSET.length));
+    if (result !== 'ok') editor.showNotice('error', result === 'tooLarge' ? 'texture.tooLarge' : 'texture.missing');
 }
 
 function readAsDataUrl(file: File): Promise<string> {
@@ -49,6 +81,7 @@ async function onFile(e: Event) {
             <TaoButton size="small" variant="secondary" @click="fileInput?.click()">{{ t('texture.upload') }}</TaoButton>
         </div>
         <img v-if="preview" class="preview" :src="preview" alt="" draggable="false" />
+        <p v-if="sheetInfo" class="sheet">{{ t('texture.sheet', [sheetInfo.cols, sheetInfo.rows, sheetInfo.count, sheetInfo.fps]) }}</p>
         <input ref="fileInput" type="file" accept="image/*" hidden @change="onFile" />
     </div>
 </template>
@@ -70,6 +103,12 @@ async function onFile(e: Event) {
 .select {
     flex: 1;
     min-width: 110px;
+}
+
+.sheet {
+    margin: 0;
+    color: var(--tao-color-text-muted, #8b929c);
+    font-size: 11px;
 }
 
 .preview {

@@ -26,7 +26,8 @@ export function useFlipbooks(deps: FlipbooksDeps) {
     /** Растёт с каждой правкой и сменой: историю читают мимо реактивности. */
     const revision = ref(0);
 
-    const text = (body: FlipbookBody) => JSON.stringify(body);
+    /** Снимок для истории: без листа, он производный (его пересобирает запекание), и отмена не должна его терять. */
+    const text = (body: FlipbookBody) => JSON.stringify({ ...body, sheet: '' });
 
     /** Тело флипбука (со значениями по умолчанию); undefined: такого документа нет. */
     function bodyOf(id: string): FlipbookBody | undefined {
@@ -92,7 +93,15 @@ export function useFlipbooks(deps: FlipbooksDeps) {
         const history = id === null ? undefined : histories.get(id);
         const state = history && move(history);
         if (id === null || state === null || state === undefined) return;
-        write(id, readBody(JSON.parse(state) as Record<string, unknown>), () => {}, false);
+        write(id, { ...readBody(JSON.parse(state) as Record<string, unknown>), sheet: bodyOf(id)?.sheet ?? '' }, () => {}, false);
+    }
+
+    /** Записывает лист, запечённый из флипбука: не правка, в историю не попадает и вкладку не закрепляет. */
+    function setSheet(id: string, sheet: string): boolean {
+        const current = bodyOf(id);
+        if (!current) return false;
+        if (current.sheet === sheet) return true;
+        return write(id, { ...current, sheet }, () => {}, false);
     }
 
     const undo = () => step((h) => h.undo());
@@ -102,7 +111,7 @@ export function useFlipbooks(deps: FlipbooksDeps) {
     const canUndo = computed(() => (void revision.value, activeId.value !== null && (histories.get(activeId.value)?.canUndo ?? false)));
     const canRedo = computed(() => (void revision.value, activeId.value !== null && (histories.get(activeId.value)?.canRedo ?? false)));
 
-    return { activeId, active, bodyOf, activate, deactivate, forget, update, undo, redo, canUndo, canRedo, isFlipbook: (id: string) => isFlipbook(deps.project.value, id) };
+    return { activeId, active, bodyOf, activate, deactivate, forget, update, setSheet, undo, redo, canUndo, canRedo, isFlipbook: (id: string) => isFlipbook(deps.project.value, id) };
 }
 
 export type Flipbooks = ReturnType<typeof useFlipbooks>;

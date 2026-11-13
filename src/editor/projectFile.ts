@@ -60,7 +60,7 @@ export function fromDataUri(src: string): { ext: string; bytes: Uint8Array } | n
     return { ext: EXT_BY_MIME[m[1]!]!, bytes };
 }
 
-const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
+export const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 /** Имя файла из имени текстуры: без знаков, которых нет в именах на Windows. */
 function fileStem(name: string): string {
@@ -135,8 +135,8 @@ export function loadProjectDoc(project: Project, registry: Registry, docId?: str
 
 /**
  * Записывает документ редактора в проект. Картинки из `data:` становятся ассетами (прежний ассет под тем же именем
- * текстуры сохраняет id, и файл переписывается, только если картинка другая); ассеты, которые больше никто не использует,
- * удаляются. Если документ сменил вид (материал стал эффектом), файл переезжает, id остаётся. Возвращает новую связь.
+ * текстуры сохраняет id, и файл переписывается, только если картинка другая); ставшие ненужными картинки остаются
+ * в проекте. Если документ сменил вид (материал стал эффектом), файл переезжает, id остаётся. Возвращает новую связь.
  */
 export function saveProjectDoc(project: Project, doc: EditorDoc, view: SavedView | undefined, link: ProjectLink, nameHint = ''): ProjectLink {
     const graph = JSON.parse(JSON.stringify(withUsedTextures(doc.graph))) as { textures?: Record<string, { asset?: string; src?: string }> };
@@ -184,10 +184,8 @@ export function saveProjectDoc(project: Project, doc: EditorDoc, view: SavedView
         next.docId = project.addDoc(path, kind, body, existing ? { id: existing.id } : undefined).id;
     }
 
-    // ассеты, на которые документ больше не ссылается
-    for (const id of Object.values(link.textureAssets)) {
-        if (!Object.values(next.textureAssets).includes(id) && project.find(id)) project.remove(id); // без force: пока на картинку ссылается другой документ, она остаётся
-    }
+    // Картинка, на которую документ больше не ссылается, остаётся в проекте: это ресурс проекта (её выбирают из дерева, на неё могут
+    // ссылаться флипбук и другие документы), и молча удалять файлы пользователя нельзя; убирает её он сам.
     return next;
 }
 
