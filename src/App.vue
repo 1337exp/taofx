@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { TaoSplit } from '@1337exp/taoui';
+import { TaoConfirmHost, TaoSplit } from '@1337exp/taoui';
 import { defineAsyncComponent, onMounted, onUnmounted } from 'vue';
 import { layout } from '@/editor/layout';
 import EditorCanvas from '@/editor/components/EditorCanvas.vue';
@@ -17,16 +17,30 @@ function onSize(value: number) {
     if (layout.nodesOpen) layout.nodesSize = value;
 }
 
-let stopAutosave: (() => void) | null = null;
+// Проект живёт только в памяти вкладки: при закрытии с несохранёнными правками браузер спросит (текст он покажет свой).
+function onBeforeUnload(e: BeforeUnloadEvent) {
+    if (!editor.dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+}
+
+// Ctrl+S (Cmd+S) сохраняет проект, а не страницу. Физическая клавиша: работает и на русской раскладке.
+function onKeydown(e: KeyboardEvent) {
+    if (e.code !== 'KeyS' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    void editor.saveProject();
+}
 
 onMounted(() => {
-    // Сохранённый граф поднимаем, иначе остаётся демо; в обоих случаях показываем его целиком.
-    const restored = editor.restoreSaved();
-    stopAutosave = editor.startAutosave();
-    if (!restored) editor.fitView();
+    editor.fitView(); // при каждом запуске открыт демо-граф: ничего не хранится между запусками
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('keydown', onKeydown);
 });
 
-onUnmounted(() => stopAutosave?.());
+onUnmounted(() => {
+    window.removeEventListener('beforeunload', onBeforeUnload);
+    window.removeEventListener('keydown', onKeydown);
+});
 </script>
 
 <template>
@@ -49,6 +63,7 @@ onUnmounted(() => stopAutosave?.());
             <PreviewPanel />
         </template>
     </TaoSplit>
+    <TaoConfirmHost />
 </template>
 
 <style>

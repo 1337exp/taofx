@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import { downloadText, MAX_FILE_BYTES } from '@1337exp/taoux/file';
-import { TaoButton, TaoSelect, TaoTooltip } from '@1337exp/taoui';
+import { downloadText } from '@1337exp/taoux/file';
+import { confirm, TaoButton, TaoSelect, TaoTooltip } from '@1337exp/taoui';
 import { computed, nextTick, ref } from 'vue';
 import { isLocaleCode, LOCALE_CODES, LOCALE_NAMES, setLocale, useI18n } from '@/i18n';
 import { FILE_NAME } from '../file';
@@ -16,10 +16,21 @@ async function onFile(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = ''; // чтобы тот же файл можно было открыть повторно
-    if (!file) return;
+    if (file) await editor.openFile(file);
+}
 
-    if (file.size > MAX_FILE_BYTES) editor.showNotice('error', 'file.error.tooLarge');
-    else editor.importText(await file.text());
+/** Проект живёт в памяти вкладки: перед тем как заменить его, спрашиваем, если есть несохранённое. */
+async function canDiscard(): Promise<boolean> {
+    if (!editor.dirty) return true;
+    return confirm(t('file.discardTitle')).message(t('file.discardMessage')).danger().ok(t('file.discard'));
+}
+
+async function onNew() {
+    if (await canDiscard()) editor.newProject();
+}
+
+async function onOpen() {
+    if (await canDiscard()) fileInput.value?.click();
 }
 
 async function startParticles() {
@@ -35,10 +46,15 @@ function onLocale(value: string | number | null) {
 
 <template>
     <div class="toolbar">
-        <TaoButton size="small" variant="secondary" @click="editor.newGraph()">{{ t('file.new') }}</TaoButton>
-        <TaoButton size="small" variant="secondary" @click="fileInput?.click()">{{ t('file.open') }}</TaoButton>
-        <TaoButton size="small" variant="secondary" @click="downloadText(FILE_NAME, editor.exportText())">{{ t('file.save') }}</TaoButton>
-        <input ref="fileInput" type="file" accept=".json,application/json" hidden @change="onFile" />
+        <TaoButton size="small" variant="secondary" @click="onNew">{{ t('file.new') }}</TaoButton>
+        <TaoButton size="small" variant="secondary" @click="onOpen">{{ t('file.open') }}</TaoButton>
+        <TaoButton size="small" variant="secondary" @click="editor.saveProject()">{{ t('file.save') }}</TaoButton>
+        <TaoTooltip :content="t('file.exportJson')"><TaoButton size="small" variant="ghost" tone="neutral" @click="downloadText(FILE_NAME, editor.exportText())">JSON</TaoButton></TaoTooltip>
+        <input ref="fileInput" type="file" accept=".taofx,.json,application/zip,application/json" hidden @change="onFile" />
+        <span class="doc" :title="editor.dirty ? t('file.unsaved') : undefined">
+            {{ editor.projectName || t('file.untitled') }}<i v-if="editor.dirty" class="dirty" aria-hidden="true">●</i>
+            <span v-if="editor.dirty" class="sr-only">{{ t('file.unsaved') }}</span>
+        </span>
 
         <span class="sep" />
 
@@ -65,8 +81,10 @@ function onLocale(value: string | number | null) {
     left: 12px;
     z-index: 10;
     display: flex;
+    flex-wrap: wrap; /* в узкой панели нод кнопки уходят на вторую строку, а не обрезаются */
     align-items: center;
     gap: 6px;
+    max-width: calc(100% - 24px);
     padding: 6px 10px;
     border: 1px solid var(--tao-color-border, #2a2d33);
     border-radius: 8px;
@@ -84,6 +102,28 @@ function onLocale(value: string | number | null) {
     height: 18px;
     margin: 0 4px;
     background: var(--tao-color-border, #2a2d33);
+}
+
+.doc {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--tao-color-text-muted, #8b929c);
+}
+
+.dirty {
+    margin-left: 4px;
+    color: var(--tao-color-accent, #f0b04a);
+    font-style: normal;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
 }
 
 .lang {

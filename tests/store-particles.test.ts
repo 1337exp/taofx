@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseDoc, serializeDoc } from '@/editor/doc';
 import { useEditor } from '@/editor/store';
 import { createDefaultRegistry } from '@/nodes';
@@ -9,6 +9,7 @@ beforeEach(() => {
     localStorage.clear();
     setActivePinia(createPinia());
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe('система частиц в документе', () => {
     it('по умолчанию документ это обычный материал; включение добавляет параметры и отменяется', () => {
@@ -62,7 +63,7 @@ describe('система частиц в документе', () => {
         expect(editor.system).toBeNull();
     });
 
-    it('файл: частицы пишутся и читаются в формате taofx-particles, материал в taofx', () => {
+    it('файл: частицы пишутся и читаются в формате taofx-particles, материал в taofx', async () => {
         const editor = useEditor();
         const registry = createDefaultRegistry();
 
@@ -72,23 +73,28 @@ describe('система частиц в документе', () => {
         editor.startParticles();
         const text = editor.exportText();
         expect(JSON.parse(text).format).toBe('taofx-particles');
-        editor.newGraph();
-        expect(editor.importText(text)).toBeNull();
+        editor.newProject();
+        await editor.openFile(new File([text], 'p.json'));
+        expect(editor.notice).toMatchObject({ kind: 'info', key: 'file.loaded' });
         expect(editor.system?.emitter.rate).toBe(90);
         expect(Object.keys(editor.graph.nodes)).toContain('p');
     });
 
-    it('автосохранение и восстановление сохраняют систему', () => {
+    it('проект с эффектом: сохраняется как эффект и открывается с той же системой', async () => {
+        const blobs: Blob[] = [];
+        vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => (blobs.push(blob as Blob), 'blob:x'));
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+        vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
         const first = useEditor();
-        const stop = first.startAutosave();
         first.startParticles();
         first.updateSystem('seed', (s) => (s.seed = 777));
-        first.flushSave();
-        stop();
+        expect(await first.saveProject()).toBe(true);
+        expect(first.project.resources.map((r) => r.path)).toEqual(['effects/effect.fx.json']);
 
         setActivePinia(createPinia());
         const second = useEditor();
-        expect(second.restoreSaved()).toBe(true);
+        await second.openFile(new File([blobs[0]!], 'e.taofx'));
         expect(second.system?.seed).toBe(777);
     });
 

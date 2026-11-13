@@ -33,7 +33,7 @@ const ZONES: Record<string, Zone> = {
     pixi: { dirs: ['pixi'], external: [/^pixi\.js$/], uses: ['core'] },
     lib: { dirs: ['lib'], external: [], uses: ['core', 'tsl', 'three', 'pixi'] },
     // Проект (файлы, ресурсы, id, ссылки): ни DOM, ни Vue, ни рендереров, ни рантайма. Его берут редактор и сборка бандла.
-    project: { dirs: ['project'], external: [], uses: [] },
+    project: { dirs: ['project'], external: [/^@1337exp\/taoux\/zip$/], uses: [] },
 };
 
 const zoneOfDir = (dir: string) => Object.keys(ZONES).find((z) => ZONES[z]!.dirs.includes(dir));

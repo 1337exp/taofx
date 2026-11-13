@@ -1,16 +1,21 @@
 import { createCamera, type Camera } from '@1337exp/taoux/camera';
 import { createPinRegistry } from '@1337exp/taoux/pins';
+import { downloadBlob, MAX_FILE_BYTES, readBytesFile } from '@1337exp/taoux/file';
 import { createDocumentSession, type SessionNotice } from '@1337exp/taoux/session';
+import type { SavedStorage } from '@1337exp/taoux/storage';
+import { looksLikeZip } from '@1337exp/taoux/zip';
 import { defineStore } from 'pinia';
-import { computed, markRaw, ref } from 'vue';
+import { computed, markRaw, ref, shallowRef } from 'vue';
 import { DEMO_GRAPH } from '@/demo';
 import type { SystemDef } from '@/particles/types';
 import { emptyDoc, parseDoc, serializeDoc, type EditorDoc } from './doc';
+import { packProject, PROJECT_EXTENSION, PROJECT_MIME, unpackProject } from '@/project/archive';
+import { createProject, type Project } from '@/project/project';
+import { emptyLink, loadProjectDoc, saveProjectDoc, type ProjectLink } from './projectFile';
 import { resolveTypes, type GraphError } from '@/graph/resolve';
 import type { Graph, PinRef } from '@/graph/types';
 import type { MessageKey } from '@/i18n';
 import { createDefaultRegistry } from '@/nodes';
-import { storage } from './persistence';
 import { useConnectionDraft } from './state/connection';
 import { usePalette } from './state/palette';
 import { useParticleDoc } from './state/particles';
@@ -24,6 +29,16 @@ export type { PaletteState, PendingConnection, PinDir, PinTarget } from './state
 export type Notice = SessionNotice<MessageKey>;
 
 const cloneDemo = (): Graph => JSON.parse(JSON.stringify(DEMO_GRAPH));
+
+/**
+ * Проект живёт только в памяти (решение: docs/project.ru.md), сессии документа хранилище не нужно. Она требует его в
+ * настройках, но без `startAutosave` и `restoreSaved` не трогает.
+ */
+const noStorage: SavedStorage = { read: () => null, write: () => true, backupBroken: () => {} };
+
+/** Имя файла из названия проекта: без знаков, которых нет в именах на Windows. */
+const fileBaseOf = (name: string) => name.trim().replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/[. ]+$/, '') || 'project';
+const stemOf = (fileName: string) => fileName.replace(/\.(taofx|json)$/i, '');
 
 /**
  * Состояние редактора. Стор только собирает части: модель документа (граф, система частиц, камера, пины) лежит здесь,
@@ -90,7 +105,7 @@ export const useEditor = defineStore('editor', () => {
             },
         },
         camera: { get: () => camera.value, set: (next) => (camera.value = next) },
-        storage,
+        storage: noStorage,
         codec: {
             serialize: serializeDoc,
             parse: (text) => parseDoc(text, registry),
@@ -118,14 +133,87 @@ export const useEditor = defineStore('editor', () => {
         },
     });
 
-    const { notice, showNotice, canUndo, canRedo, commit, undo, redo, recorded, exportText, restoreSaved, startAutosave, flushSave } = session;
+    const { notice, showNotice, canUndo, canRedo, dirty, commit, undo, redo, recorded, exportText } = session;
 
-    // Открытый файл или демо показываем целиком: вид из файла сохранён при другом размере окна, а у файла без вида камера
-    // осталась бы от прежнего графа и сцена оказалась бы где-то за кадром.
-    function importText(text: string) {
-        const error = session.importText(text);
-        if (!error) fitView();
-        return error;
+    //---]>
+    // проект: файлы в памяти, открытие и сохранение (решения: docs/project.ru.md)
+
+    /** Проект, в котором лежит открытый документ. Сам не реактивен (это файлы), его замена видна через `projectName`. */
+    const project = shallowRef<Project>(markRaw(createProject()));
+    /** Как открытый документ лежит в проекте (какой это файл, какая картинка какому ассету). */
+    let link: ProjectLink = emptyLink();
+    const projectName = ref('');
+
+    function useProject(next: Project, nextLink: ProjectLink) {
+        project.value = markRaw(next);
+        link = nextLink;
+        projectName.value = next.manifest.name;
+    }
+
+    /** Открытый документ целиком: вид из файла сохранён при другом размере окна, а у файла без вида камера осталась бы от прежнего графа. */
+    function showOpened(items: number, dropped: number, problems: number) {
+        fitView();
+        if (problems > 0) showNotice('error', 'file.loadedWithProblems', [items, problems]);
+        else if (dropped > 0) showNotice('error', 'file.loadedWithDropped', [items, dropped]);
+        else showNotice('info', 'file.loaded', [items]);
+    }
+
+    const refuse = (code: string, detail?: string | number) => showNotice('error', `file.error.${code}` as MessageKey, detail === undefined ? undefined : [detail]);
+
+    /** Пустой проект и пустой документ; текущие несохранённые правки отбрасываются (спрашивает интерфейс). */
+    function newProject() {
+        useProject(createProject(), emptyLink());
+        session.load(emptyDoc(), { x: 0, y: 0, z: 1 }, true);
+        showNotice('info', 'file.newGraph');
+    }
+
+    async function openProjectBytes(bytes: Uint8Array, name: string) {
+        const unpacked = await unpackProject(bytes);
+        if (!unpacked.ok) return refuse(unpacked.error, unpacked.detail);
+        const opened = loadProjectDoc(unpacked.project, registry);
+        if (!opened.ok) return refuse(opened.error.code, opened.error.detail);
+
+        const { doc, view, link: docLink, dropped, missingAssets } = opened.loaded;
+        if (unpacked.project.manifest.name === '' && name !== '') unpacked.project.setManifest({ name });
+        unpacked.project.markSaved();
+        useProject(unpacked.project, docLink);
+        session.load(doc, view, true);
+        showOpened(Object.keys(doc.graph.nodes).length, dropped, unpacked.project.problems.length + missingAssets);
+    }
+
+    /** Файл прежнего вида (`taofx` или `taofx-particles`): открывается как документ нового проекта, при сохранении станет проектом. */
+    function openLegacyText(text: string, name: string) {
+        const parsed = parseDoc(text, registry);
+        if (!parsed.ok) return refuse(parsed.error.code, parsed.error.detail);
+        useProject(createProject({ name: name === 'taofx' ? '' : name }), emptyLink());
+        session.load(parsed.doc, parsed.view, true);
+        showOpened(Object.keys(parsed.doc.graph.nodes).length, parsed.dropped, 0);
+    }
+
+    /** Открывает выбранный файл: проект `.taofx` (zip) или прежний `.json`. Какой это файл, решают по содержимому, а не по имени. */
+    async function openFile(file: Blob & { name?: string }) {
+        const read = await readBytesFile(file);
+        if (!read.ok) return refuse(read.error);
+        const name = stemOf(file.name ?? '');
+        if (looksLikeZip(read.data)) return openProjectBytes(read.data, name);
+        if (read.data.length > MAX_FILE_BYTES) return refuse('tooLarge');
+        openLegacyText(new TextDecoder().decode(read.data), name);
+    }
+
+    /** Записывает документ в проект и отдаёт файл `.taofx`. «Не сохранено» снимается, когда файл отдан. */
+    async function saveProject(): Promise<boolean> {
+        try {
+            const p = project.value;
+            link = saveProjectDoc(p, { graph: graph.value, system: system.value }, { x: camera.value.x, y: camera.value.y, z: camera.value.z }, link, p.manifest.name);
+            downloadBlob(fileBaseOf(p.manifest.name) + PROJECT_EXTENSION, await packProject(p), PROJECT_MIME);
+            p.markSaved();
+            session.markSaved();
+            showNotice('info', 'file.saved');
+            return true;
+        } catch {
+            showNotice('error', 'file.error.saveFailed');
+            return false;
+        }
     }
 
     const particles = useParticleDoc({
@@ -190,13 +278,14 @@ export const useEditor = defineStore('editor', () => {
         canUndo,
         canRedo,
         showNotice,
+        dirty,
+        project,
+        projectName,
+        /** Файл для игры: прежний `taofx.json` (граф или система частиц с картинками внутри). */
         exportText,
-        importText,
-        newGraph: session.newDocument,
-        loadGraph: session.load,
-        restoreSaved,
-        startAutosave,
-        flushSave,
+        newProject,
+        openFile,
+        saveProject,
         commit,
         undo,
         redo,

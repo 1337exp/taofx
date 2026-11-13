@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditor, type PinTarget } from '@/editor/store';
 
 const out = (node: string, pin: string): PinTarget => ({ ref: { node, pin }, dir: 'out' });
@@ -10,6 +10,21 @@ beforeEach(() => {
     localStorage.clear();
     setActivePinia(createPinia());
 });
+afterEach(() => vi.restoreAllMocks());
+
+/** Скачивание файла в тесте: что отдали бы пользователю. */
+function captureDownload() {
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => (blobs.push(blob as Blob), 'blob:x'));
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        names.push(this.download);
+    });
+    return { blobs, names };
+}
+
+const fileOf = (text: string, name = 'f.json') => new File([text], name);
 
 describe('протягивание связей', () => {
     it('создаёт допустимую связь и отклоняет недопустимую', () => {
@@ -178,12 +193,13 @@ describe('камера и файл', () => {
         }
     });
 
-    it('открытый файл показывается целиком, даже если вид в нём сохранён при другом окне', () => {
+    it('открытый файл показывается целиком, даже если вид в нём сохранён при другом окне', async () => {
         const editor = useEditor();
         editor.viewport = { w: 1000, h: 600 };
         const text = JSON.parse(editor.exportText());
         text.view = { x: 99999, y: 99999, z: 0.1 }; // вид из файла: сцена за кадром
-        expect(editor.importText(JSON.stringify(text))).toBeNull();
+        await editor.openFile(fileOf(JSON.stringify(text)));
+        expect(editor.notice).toMatchObject({ kind: 'info', key: 'file.loaded' });
         for (const n of Object.values(editor.graph.nodes)) {
             const { x, y, z } = editor.camera;
             expect(n.x * z + x).toBeGreaterThanOrEqual(0);
@@ -192,32 +208,106 @@ describe('камера и файл', () => {
         }
     });
 
-    it('сохранение и открытие файла возвращают граф; чужой файл отклоняется с уведомлением', () => {
+    it('файл прежнего вида (JSON для игры) открывается как документ нового проекта; чужой файл отклоняется с уведомлением', async () => {
         const editor = useEditor();
         const text = editor.exportText();
 
-        editor.newGraph();
+        editor.newProject();
         expect(Object.keys(editor.graph.nodes)).toHaveLength(0);
 
-        expect(editor.importText(text)).toBeNull();
+        await editor.openFile(fileOf(text, 'boom.json'));
         expect(Object.keys(editor.graph.nodes).length).toBe(14);
         expect(editor.notice).toMatchObject({ kind: 'info', key: 'file.loaded', args: [14] });
+        expect(editor.projectName).toBe('boom');
 
-        expect(editor.importText('{"format":"nope"}')).toMatchObject({ code: 'notTaofxFile' });
+        await editor.openFile(fileOf('{"format":"nope"}'));
         expect(editor.notice).toMatchObject({ kind: 'error', key: 'file.error.notTaofxFile' });
         expect(Object.keys(editor.graph.nodes).length).toBe(14); // граф не изменился
+        expect(editor.projectName).toBe('boom'); // и проект тот же
     });
 
-    it('автосохранение и восстановление', async () => {
-        const first = useEditor();
-        const stop = first.startAutosave();
-        first.setValue('mask', 'low', 0.42);
-        first.flushSave();
-        stop();
+    it('не файл проекта: ни архив, ни JSON; повреждённый архив называет причину', async () => {
+        const editor = useEditor();
+        await editor.openFile(fileOf('просто текст'));
+        expect(editor.notice).toMatchObject({ kind: 'error', key: 'file.error.invalidJson' });
+
+        await editor.openFile(new File([Uint8Array.of(0x50, 0x4b, 3, 4, 1, 2, 3)], 'x.taofx'));
+        expect(editor.notice).toMatchObject({ kind: 'error', key: 'file.error.notZip' });
+        expect(Object.keys(editor.graph.nodes).length).toBe(14);
+    });
+
+    it('сохранить проект и открыть его заново: граф, значения, вид, имя; «не сохранено» снимается', async () => {
+        const { blobs, names } = captureDownload();
+        const editor = useEditor();
+        expect(editor.dirty).toBe(false);
+
+        editor.setValue('mask', 'low', 0.42);
+        expect(editor.dirty).toBe(true);
+        editor.camera = { x: 5, y: 6, z: 1.25 };
+
+        expect(await editor.saveProject()).toBe(true);
+        expect(editor.dirty).toBe(false);
+        expect(editor.notice).toMatchObject({ kind: 'info', key: 'file.saved' });
+        expect(names).toEqual(['project.taofx']);
+        expect(blobs[0]!.type).toBe('application/zip');
 
         setActivePinia(createPinia());
         const second = useEditor();
-        expect(second.restoreSaved()).toBe(true);
+        expect(second.graph.nodes.mask!.values.low).not.toBe(0.42);
+        await second.openFile(new File([blobs[0]!], 'my effect.taofx'));
         expect(second.graph.nodes.mask!.values.low).toBe(0.42);
+        expect(second.projectName).toBe('my effect'); // у проекта не было имени: берётся из имени файла
+        expect(second.dirty).toBe(false);
+        expect(second.notice).toMatchObject({ kind: 'info', key: 'file.loaded' });
+    });
+
+    it('файл с именем taofx.json не даёт проекту имя «taofx»', async () => {
+        const editor = useEditor();
+        await editor.openFile(fileOf(editor.exportText(), 'taofx.json'));
+        expect(editor.projectName).toBe('');
+    });
+
+    it('слишком большой файл прежнего вида отклоняется', async () => {
+        const editor = useEditor();
+        await editor.openFile(fileOf('x'.repeat(5_000_001)));
+        expect(editor.notice).toMatchObject({ kind: 'error', key: 'file.error.tooLarge' });
+    });
+
+    it('и сам проект после открытия и сохранения не «грязный»', async () => {
+        const { blobs } = captureDownload();
+        const editor = useEditor();
+        editor.setValue('mask', 'low', 0.42);
+        await editor.saveProject();
+        expect(editor.project.dirty).toBe(false);
+
+        setActivePinia(createPinia());
+        const second = useEditor();
+        await second.openFile(new File([blobs[0]!], 'без названия.taofx')); // имя из файла дописывается в манифест
+        expect(second.project.dirty).toBe(false);
+    });
+
+    it('«не сохранено»: правка, отмена, открытие и новый проект', async () => {
+        const editor = useEditor();
+        const json = editor.exportText();
+        expect(editor.dirty).toBe(false);
+        editor.setValue('mask', 'low', 0.3);
+        expect(editor.dirty).toBe(true);
+        editor.undo();
+        expect(editor.dirty).toBe(true); // флаг, а не позиция в истории
+        editor.newProject();
+        expect(editor.dirty).toBe(false);
+        editor.addNodeAtCenter('math/add');
+        expect(editor.dirty).toBe(true);
+        await editor.openFile(fileOf(json));
+        expect(editor.dirty).toBe(false);
+    });
+
+    it('проект живёт в памяти: в localStorage документ не пишется', () => {
+        const spy = vi.spyOn(Storage.prototype, 'setItem');
+        const editor = useEditor();
+        editor.setValue('mask', 'low', 0.42);
+        editor.addNodeAtCenter('math/add');
+        expect(spy.mock.calls.filter(([key]) => String(key).startsWith('taofx.graph'))).toEqual([]);
+        expect(localStorage.getItem('taofx.graph')).toBeNull();
     });
 });

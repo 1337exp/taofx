@@ -79,7 +79,60 @@ export const FLIPBOOK: DocKind = {
     },
 };
 
-export const DEFAULT_KINDS: readonly ResourceKind[] = [IMAGE, FLIPBOOK];
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** Вид камеры редактора в документе (необязателен). */
+const checkView = (view: unknown): string | null => (view === undefined || (isObj(view) && isFiniteNumber(view.x) && isFiniteNumber(view.y) && isFiniteNumber(view.z)) ? null : 'view');
+
+/**
+ * Граф материала в теле документа: те же `nodes` и `connections`, что у рантайма, но картинки (`textures`) ссылаются на ассет
+ * проекта по id (`{ asset }`), а не лежат внутри (`{ src }`: внешний адрес, который проект не трогает). Глубокую проверку
+ * графа делает редактор при открытии (тем же разбором, что и файл рантайма), здесь только форма.
+ */
+function checkGraph(graph: unknown): string | null {
+    if (!isObj(graph)) return 'graph';
+    if (!isObj(graph.nodes)) return 'graph.nodes';
+    if (!Array.isArray(graph.connections)) return 'graph.connections';
+    if (graph.textures !== undefined) {
+        if (!isObj(graph.textures)) return 'graph.textures';
+        for (const [name, t] of Object.entries(graph.textures)) {
+            if (!isObj(t) || (typeof t.asset !== 'string' && typeof t.src !== 'string')) return `graph.textures.${name}`;
+        }
+    }
+    return null;
+}
+
+const graphRefs = (body: Body): string[] => {
+    const textures = isObj(body.graph) ? body.graph.textures : undefined;
+    return isObj(textures) ? Object.values(textures).flatMap((t) => (isObj(t) && isId(t.asset) ? [t.asset] : [])) : [];
+};
+
+/** Материал: граф нод, который строит вид поверхности, фильтра или частицы. Тело: `{ graph, view? }`. */
+export const MATERIAL: DocKind = {
+    type: 'doc',
+    kind: 'material',
+    format: 'taofx-material',
+    version: 1,
+    create: () => ({ graph: { nodes: {}, connections: [] } }),
+    refs: graphRefs,
+    check: (body) => checkGraph(body.graph) ?? checkView(body.view),
+};
+
+/**
+ * Эффект: система частиц и материал частицы. Тело: `{ system, graph, view? }` (материал пока встроен; слои со ссылками на
+ * документы-материалы придут позже и сменят версию с миграцией).
+ */
+export const EFFECT: DocKind = {
+    type: 'doc',
+    kind: 'effect',
+    format: 'taofx-effect',
+    version: 1,
+    create: () => ({ system: {}, graph: { nodes: {}, connections: [] } }),
+    refs: graphRefs,
+    check: (body) => (isObj(body.system) ? null : 'system') ?? checkGraph(body.graph) ?? checkView(body.view),
+};
+
+export const DEFAULT_KINDS: readonly ResourceKind[] = [IMAGE, FLIPBOOK, MATERIAL, EFFECT];
 
 //--------------------------------------------------
 

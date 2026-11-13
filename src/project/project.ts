@@ -133,7 +133,7 @@ export function scanFiles(files: Files, kinds: Kinds): Scan {
 
 //--------------------------------------------------
 
-export type ProjectErrorCode = 'missing' | 'pathTaken' | 'wrongExtension' | 'unknownKind' | 'invalidDoc';
+export type ProjectErrorCode = 'missing' | 'pathTaken' | 'wrongExtension' | 'unknownKind' | 'invalidDoc' | 'badId';
 
 export class ProjectError extends Error {
     constructor(
@@ -173,7 +173,8 @@ export interface Project {
     addAsset(path: string, data: Uint8Array): Resource;
     /** Заводит записи файлам, которые положили без `.meta.json` (например, распаковали zip, собранный руками). Сколько заведено. */
     adopt(): number;
-    addDoc(path: string, kind: string, body?: Body): Resource;
+    /** Новый документ. `id` задают, когда документ переезжает из другого вида (id сохраняется); по умолчанию создаётся новый. */
+    addDoc(path: string, kind: string, body?: Body, options?: { id?: string }): Resource;
     readDoc(id: string): { resource: Resource; body: Body } | undefined;
     /** Заменяет тело документа, id и формат остаются. Негодное тело: `ProjectError('invalidDoc')`. */
     writeDoc(id: string, body: Body): void;
@@ -297,7 +298,7 @@ function build(files: Files, initial: Manifest, kinds: Kinds): Project {
             }
             return count;
         },
-        addDoc(path, kindName, body) {
+        addDoc(path, kindName, body, options = {}) {
             const kind = kinds.byName(kindName);
             if (!kind || kind.type !== 'doc') throw new ProjectError('unknownKind', kindName);
             if (extname(path).toLowerCase() !== '.json' || isMetaPath(path) || pathKey(path) === PROJECT_FILE) throw new ProjectError('wrongExtension', path);
@@ -305,7 +306,8 @@ function build(files: Files, initial: Manifest, kinds: Kinds): Project {
             const content = { ...kind.create(), ...body };
             const bad = kind.check(content);
             if (bad) throw new ProjectError('invalidDoc', bad);
-            const id = newId((candidate) => current().byId.has(candidate));
+            if (options.id !== undefined && (!isId(options.id) || current().byId.has(options.id))) throw new ProjectError('badId', options.id);
+            const id = options.id ?? newId((candidate) => current().byId.has(candidate));
             files.write(path, docText(kind, id, content));
             return { id, kind: kind.kind, type: 'doc', path: files.find(path)!, refs: kind.refs(content).filter(isId) };
         },
