@@ -3,7 +3,7 @@
 // Механику (реестр, меню из раскладки, клавиши) даёт `taoux/commands`, здесь то, что знает про редактор.
 
 import { createCommands, historyCommands, type Command, type CommandMenuItem, type MenuLayout } from '@1337exp/taoux/commands';
-import { downloadText } from '@1337exp/taoux/file';
+import { downloadBlob, downloadText } from '@1337exp/taoux/file';
 import type { TaoCommandItem } from '@1337exp/taoui';
 import { nextTick } from 'vue';
 import type { LocaleCode, MessageArgs, MessageKey } from '@/i18n';
@@ -51,6 +51,7 @@ export const COMMAND = {
     open: 'open',
     save: 'save',
     export: 'export',
+    exportBundle: 'export.bundle',
     newEffect: 'project.newEffect',
     newMaterial: 'project.newMaterial',
     newFlipbook: 'project.newFlipbook',
@@ -92,6 +93,19 @@ export function createEditorCommands(deps: CommandDeps) {
         { id: COMMAND.open, label: () => t('commands.open'), shortcut: 'Mod+O', run: () => void deps.confirmDiscard().then((ok) => ok && deps.pickFile()) },
         { id: COMMAND.save, label: () => t('file.save'), shortcut: 'Mod+S', run: () => void editor.saveProject() },
         { id: COMMAND.export, label: () => t('commands.exportJson'), shortcut: 'Mod+E', run: () => downloadText(FILE_NAME, editor.exportText()) },
+        {
+            id: COMMAND.exportBundle,
+            label: () => t('commands.exportBundle'),
+            enabled: () => editor.activeFlipbookId === null,
+            run: async () => {
+                const packed = await editor.packBundle();
+                if (!packed) return;
+                downloadBlob(`${packed.bundle.name}.zip`, packed.bytes, 'application/zip');
+                const { problems, files } = packed.bundle;
+                if (problems.length > 0) editor.showNotice('error', 'file.bundleProblems', [problems.map((p) => p.detail).join(', ')]);
+                else editor.showNotice('info', 'file.bundleDone', [files.length]);
+            },
+        },
         // проект
         { id: COMMAND.newEffect, label: () => t('project.newEffect'), run: () => void editor.createDocument('effect') },
         { id: COMMAND.newMaterial, label: () => t('project.newMaterial'), run: () => void editor.createDocument('material') },
@@ -154,7 +168,7 @@ export function createEditorCommands(deps: CommandDeps) {
 
     /** Раскладка меню: она же порядок и группы в палитре. */
     const layoutOfMenu = (): MenuLayout => [
-        { id: 'menu.file', label: () => t('commands.file'), items: [COMMAND.new, COMMAND.open, COMMAND.save, '-', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, '-', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, '-', COMMAND.export] },
+        { id: 'menu.file', label: () => t('commands.file'), items: [COMMAND.new, COMMAND.open, COMMAND.save, '-', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, '-', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, '-', COMMAND.exportBundle, COMMAND.export] },
         { id: 'menu.edit', label: () => t('commands.edit'), items: [COMMAND.undo, COMMAND.redo, '-', COMMAND.resourceRename, COMMAND.resourceDelete] },
         {
             id: 'menu.view',

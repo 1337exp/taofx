@@ -3,6 +3,7 @@
  * Нужны three >= 0.186.
  */
 export { createEffect, type Effect, type EffectOptions } from '../tsl/effect';
+export { fetchEffectText, withBaseUrl } from '../graph/baseUrl';
 export { EffectLoadError } from '../graph/load';
 export { compile, TSL_CAPABILITIES, type CompiledSurface, type CompileResult } from '../tsl/compile';
 export { applySurface, createSurfaceMaterial } from '../tsl/material';

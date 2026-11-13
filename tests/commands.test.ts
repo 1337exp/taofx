@@ -67,7 +67,7 @@ describe('реестр команд редактора', () => {
         const { menu } = setup();
         const tree = menu();
         expect(tree.map((m: any) => m.label)).toEqual(['commands.file', 'commands.edit', 'commands.view', 'commands.effect']);
-        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, 'separator', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, 'separator', COMMAND.export]);
+        expect(find(tree, 'menu.file').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, 'separator', COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, 'separator', COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, 'separator', COMMAND.exportBundle, COMMAND.export]);
         expect(find(tree, 'menu.edit').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.undo, COMMAND.redo, 'separator', COMMAND.resourceRename, COMMAND.resourceDelete]);
         expect(find(tree, 'menu.language').items.map((i: any) => i.label)).toEqual(['Русский', 'English']);
         expect(find(tree, 'menu.effect').items.map((i: any) => i.id ?? i.type)).toEqual([COMMAND.fxEnable, COMMAND.fxDisable, 'separator', COMMAND.fxSample, COMMAND.fxPlay]);
@@ -208,6 +208,40 @@ describe('файл', () => {
         });
         setup().commands.run(COMMAND.export);
         expect(names).toEqual(['taofx.json']);
+    });
+
+    async function bundleRun(prepare: (ctx: ReturnType<typeof setup>) => void = () => {}) {
+        const names: string[] = [];
+        vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:x');
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+        vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+            names.push(this.download);
+        });
+        const ctx = setup();
+        prepare(ctx);
+        ctx.commands.run(COMMAND.exportBundle);
+        await vi.waitFor(() => expect(ctx.editor.notice).not.toBeNull());
+        return { names, ...ctx };
+    }
+
+    it('«Собрать пакет» отдаёт zip с именем документа, даже для нетронутой заготовки, и пишет её в проект', async () => {
+        const { names, editor } = await bundleRun();
+        expect(names).toEqual(['material.zip']);
+        expect(editor.project.resources.map((r) => r.path)).toEqual(['materials/material.mat.json']);
+        expect(editor.notice).toMatchObject({ kind: 'info', key: 'file.bundleDone', args: [1] });
+    });
+
+    it('пакет эффекта называется по файлу эффекта', async () => {
+        const { names } = await bundleRun(({ editor }) => void editor.createDocument('effect'));
+        expect(names).toEqual(['effect.zip']);
+    });
+
+    it('«Собрать пакет» недоступно, пока на экране флипбук, и ничего не отдаёт', async () => {
+        const { commands, editor } = setup();
+        editor.createFlipbook();
+        expect(commands.isEnabled(COMMAND.exportBundle)).toBe(false);
+        editor.showScene();
+        expect(commands.isEnabled(COMMAND.exportBundle)).toBe(true);
     });
 });
 
@@ -398,7 +432,7 @@ describe('палитра и язык', () => {
         const { paletteItems } = setup();
         const items = paletteItems();
         const ids = items.map((i) => i.id);
-        expect(ids.slice(0, 11)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, COMMAND.export]);
+        expect(ids.slice(0, 12)).toEqual([COMMAND.new, COMMAND.open, COMMAND.save, COMMAND.newEffect, COMMAND.newMaterial, COMMAND.newFlipbook, COMMAND.import, COMMAND.tabClose, COMMAND.tabCloseOthers, COMMAND.tabCloseAll, COMMAND.exportBundle, COMMAND.export]);
         expect(items.find((i) => i.id === COMMAND.save)).toMatchObject({ label: 'file.save', group: 'commands.file', shortcut: 'Ctrl+S', disabled: false });
         expect(items.find((i) => i.id === COMMAND.undo)).toMatchObject({ group: 'commands.edit', disabled: true });
         expect(items.find((i) => i.id === 'lang.en')).toMatchObject({ group: 'commands.view', label: 'English' });

@@ -36,6 +36,8 @@ const ZONES: Record<string, Zone> = {
     project: { dirs: ['project'], external: [/^@1337exp\/taoux\/zip$/], uses: [] },
     // Флипбук (поиск кадров, запекание листа, PNG): тоже чистое ядро без DOM, Vue и рендереров; порт ядра sprite-cutter.
     flipbook: { dirs: ['flipbook'], external: [], uses: [] },
+    // Пакет для игры: из проекта в файлы рантайма. Знает формат рантайма и проект, но не DOM, Vue и рендереры.
+    bundle: { dirs: ['bundle'], external: [], uses: ['core', 'project'] },
 };
 
 const zoneOfDir = (dir: string) => Object.keys(ZONES).find((z) => ZONES[z]!.dirs.includes(dir));

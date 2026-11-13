@@ -50,9 +50,9 @@ export function useProjectDocs(deps: ProjectDocsDeps) {
         deps.projectRevision.value++;
     }
 
-    /** Записывает открытый документ в проект (создаёт файл, если его ещё нет). Без правок файлы не меняются. */
-    function sync() {
-        if (deps.isPristine()) return; // нетронутая заготовка не становится файлом проекта сама собой
+    /** Записывает открытый документ в проект (создаёт файл, если его ещё нет). Без правок файлы не меняются; `force` пишет и нетронутую заготовку. */
+    function sync(force = false) {
+        if (!force && deps.isPristine()) return; // нетронутая заготовка не становится файлом проекта сама собой
         const { doc, view } = deps.current();
         const link = saveProjectDoc(project.value, doc, view, deps.getLink(), project.value.manifest.name);
         deps.setLink(link);

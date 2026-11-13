@@ -9,6 +9,8 @@ import { computed, markRaw, ref, shallowRef, watch } from 'vue';
 import { DEMO_GRAPH } from '@/demo';
 import type { SystemDef } from '@/particles/types';
 import { emptyDoc, parseDoc, serializeDoc, type EditorDoc } from './doc';
+import { createZip } from '@1337exp/taoux/zip';
+import { buildBundle, type Bundle } from '@/bundle/bundle';
 import { packProject, PROJECT_EXTENSION, PROJECT_MIME, unpackProject } from '@/project/archive';
 import { createProject, type Project } from '@/project/project';
 import { emptyLink, loadProjectDoc, MIME_BY_EXT, saveProjectDoc, toDataUri, type ProjectLink } from './projectFile';
@@ -365,6 +367,18 @@ export const useEditor = defineStore('editor', () => {
     }
 
     /**
+     * Пакет для игры из открытого документа: файл эффекта в формате рантайма и картинки рядом, одним zip. Документ перед этим
+     * записывается в проект (и нетронутая заготовка тоже: её просят собрать, значит она нужна).
+     */
+    async function packBundle(): Promise<{ bundle: Bundle; bytes: Awaited<ReturnType<typeof createZip>> } | null> {
+        docs.sync(true);
+        const id = openDocId.value;
+        const bundle = id === null ? undefined : buildBundle(project.value, id);
+        if (!bundle) return null;
+        return { bundle, bytes: await createZip(bundle.files.map((f) => ({ name: f.path, data: f.data }))) };
+    }
+
+    /**
      * Выбирает в параметре ноды картинку из проекта (без копии: при сохранении она останется тем же ассетом). Картинка, которая
      * уже подключена к графу, берётся как есть; новая кладётся в граф под именем файла. Отказ: `missing` (нет такой картинки)
      * или `tooLarge` (в графе она не поместится: предел файла рантайма).
@@ -515,6 +529,7 @@ export const useEditor = defineStore('editor', () => {
         setParam: recorded(setParam),
         importTexture: recorded(importTexture),
         useProjectImage: recorded(useProjectImage),
+        packBundle,
         /** Какая картинка проекта подключена к графу под этим именем текстуры (undefined: своя, загруженная в граф). */
         textureAssetOf: (name: string) => link.textureAssets[name],
         refreshTextures,

@@ -3,6 +3,7 @@
  * Нужны three >= 0.186.
  */
 export { createGlslEffect, type GlslEffect, type GlslEffectOptions } from '../three/glsl';
+export { fetchEffectText, withBaseUrl } from '../graph/baseUrl';
 export { EffectLoadError } from '../graph/load';
 export { bindScene, createSceneCapture, type SceneBinding, type SceneCapture, type SceneInputs } from '../three/scene';
 export { createGlslParticles, type GlslParticleEffect, type GlslParticleOptions } from '../three/particles';

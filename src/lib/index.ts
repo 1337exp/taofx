@@ -7,6 +7,7 @@
  *   @1337exp/taofx/pixi   фильтр PIXI v8 (WebGL)
  */
 export { EffectLoadError, loadGraph } from '../graph/load';
+export { fetchEffectText, resolveSrc, withBaseUrl } from '../graph/baseUrl';
 export { FORMAT, VERSION, parse as parseEffect, serialize as serializeEffect, type LoadError, type LoadErrorCode, type ParseResult } from '../graph/serialize';
 
 // Собственные ноды и построение графа из кода.
