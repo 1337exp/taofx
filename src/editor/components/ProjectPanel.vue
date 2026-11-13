@@ -3,7 +3,7 @@ import { TaoDropdownMenu, TaoEmpty, TaoIcon, TaoTree } from '@1337exp/taoui';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import { COMMAND } from '../commands';
-import { buildProjectTree } from '../projectTree';
+import { buildProjectTree, collapsedAfter, openFolders } from '../projectTree';
 import { useEditorCommands } from '../shellCommands';
 import { useEditor } from '../store';
 import { ui } from '../ui';
@@ -19,14 +19,10 @@ const nodes = computed(() => {
     return buildProjectTree(editor.project.resources);
 });
 
-/** Папки открыты по умолчанию: проект маленький, и дерево сразу показывает всё. */
-const expanded = ref<string[]>([]);
-const open = computed(() => {
-    const all: string[] = [];
-    const walk = (list: typeof nodes.value) => list.forEach((n) => n.children && (all.push(n.id), walk(n.children)));
-    walk(nodes.value);
-    return [...new Set([...all, ...expanded.value])];
-});
+/** Папки открыты по умолчанию, помнится только то, что пользователь свернул: так новая папка (первая картинка) открыта сразу. */
+const collapsed = ref<ReadonlySet<string>>(new Set());
+const open = computed(() => openFolders(nodes.value, collapsed.value));
+const onExpanded = (expanded: string[]) => (collapsed.value = collapsedAfter(nodes.value, expanded));
 
 // выбранным в дереве становится открытый документ (при открытии, создании, удалении открытого)
 watch(
@@ -94,7 +90,7 @@ const run = (id: string | number) => commands.run(String(id));
                 :expanded="open"
                 :selected="ui.selectedResource"
                 :aria-label="t('shell.project')"
-                @update:expanded="expanded = $event"
+                @update:expanded="onExpanded"
                 @select="onSelect"
             >
                 <template #actions="{ node }">

@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LAYOUT, readLayout } from '@/editor/layout';
 import { usePreviewState } from '@/editor/state/preview';
-import { buildProjectTree, folderId } from '@/editor/projectTree';
+import { buildProjectTree, collapsedAfter, folderId, folderIds, openFolders } from '@/editor/projectTree';
 import { useEditor } from '@/editor/store';
 import type { Resource } from '@/project/project';
 
@@ -32,6 +32,34 @@ describe('раскладка оболочки', () => {
         expect(readLayout({ left: 40 }).left).toBe(40);
         expect(readLayout({ left: 7.9 }).left).toBe(DEFAULT_LAYOUT.left);
         expect(readLayout({ left: 40.1 }).left).toBe(DEFAULT_LAYOUT.left);
+    });
+});
+
+describe('дерево проекта: раскрытые папки', () => {
+    const tree = buildProjectTree([res('a', 'effects/deep/x.fx.json', 'effect'), res('b', 'effects/y.fx.json', 'effect'), res('c', 'textures/t.png', 'image'), res('d', 'root.mat.json')]);
+
+    it('папки собираются со всех уровней, листья не в счёте', () => {
+        expect(folderIds(tree)).toEqual(['dir:effects', 'dir:effects/deep', 'dir:textures']);
+        expect(folderIds([])).toEqual([]);
+    });
+
+    it('открыты все, кроме свёрнутых', () => {
+        expect(openFolders(tree, new Set())).toEqual(['dir:effects', 'dir:effects/deep', 'dir:textures']);
+        expect(openFolders(tree, new Set(['dir:effects']))).toEqual(['dir:effects/deep', 'dir:textures']);
+    });
+
+    it('новая папка открыта, а свёрнутая остаётся свёрнутой', () => {
+        const collapsed = new Set(['dir:textures']);
+        const grown = buildProjectTree([res('a', 'effects/x.fx.json', 'effect'), res('c', 'textures/t.png', 'image'), res('n', 'sheets/s.flip.json')]);
+        expect(openFolders(grown, collapsed)).toEqual(['dir:effects', 'dir:sheets']);
+    });
+
+    it('сообщение дерева о раскрытых превращается в свёрнутые: стрелка сворачивает и разворачивает', () => {
+        const afterCollapse = collapsedAfter(tree, ['dir:effects/deep', 'dir:textures']); // свернули «effects»
+        expect([...afterCollapse]).toEqual(['dir:effects']);
+        expect(openFolders(tree, afterCollapse)).toEqual(['dir:effects/deep', 'dir:textures']);
+        expect([...collapsedAfter(tree, ['dir:effects', 'dir:effects/deep', 'dir:textures'])]).toEqual([]); // развернули обратно
+        expect([...collapsedAfter(tree, [])]).toEqual(['dir:effects', 'dir:effects/deep', 'dir:textures']);
     });
 });
 

@@ -45,3 +45,22 @@ export function buildProjectTree(resources: readonly Resource[]): ProjectTreeNod
     ];
     return convert(root, '');
 }
+
+/** Id всех папок дерева. */
+export function folderIds(nodes: readonly ProjectTreeNode[]): string[] {
+    return nodes.flatMap((n) => (n.children ? [n.id, ...folderIds(n.children)] : []));
+}
+
+/**
+ * Какие папки показывать раскрытыми: все, кроме свернутых пользователем. Помнится именно свёрнутое, потому что папка,
+ * появившаяся позже (первая картинка в `textures/`), должна быть открыта, а свёрнутая пользователем такой и остаться.
+ */
+export function openFolders(nodes: readonly ProjectTreeNode[], collapsed: ReadonlySet<string>): string[] {
+    return folderIds(nodes).filter((id) => !collapsed.has(id));
+}
+
+/** Свёрнутые после того, как дерево сообщило новый список раскрытых: все папки, которых в нём нет. */
+export function collapsedAfter(nodes: readonly ProjectTreeNode[], expanded: readonly string[]): Set<string> {
+    const open = new Set(expanded);
+    return new Set(folderIds(nodes).filter((id) => !open.has(id)));
+}

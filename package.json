@@ -71,7 +71,7 @@
     }
   },
   "devDependencies": {
-    "@1337exp/taoui": "^5.38.0",
+    "@1337exp/taoui": "^5.39.1",
     "@1337exp/taoux": "^0.13.0",
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
