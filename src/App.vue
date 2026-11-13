@@ -1,21 +1,10 @@
 <script lang="ts" setup>
-import { TaoConfirmHost, TaoSplit } from '@1337exp/taoui';
-import { defineAsyncComponent, onMounted, onUnmounted } from 'vue';
-import { layout } from '@/editor/layout';
-import EditorCanvas from '@/editor/components/EditorCanvas.vue';
-import NodePalette from '@/editor/components/NodePalette.vue';
-import Toolbar from '@/editor/components/Toolbar.vue';
+import { TaoConfirmHost } from '@1337exp/taoui';
+import { onMounted, onUnmounted } from 'vue';
+import Shell from '@/editor/components/Shell.vue';
 import { useEditor } from '@/editor/store';
 
-// Превью тянет за собой three (WebGPU) и компилятор TSL, это больше половины сборки: грузим после того, как редактор уже показан
-const PreviewPanel = defineAsyncComponent(() => import('@/editor/components/PreviewPanel.vue'));
-
 const editor = useEditor();
-
-// В свёрнутом состоянии сплит отдаёт нодам 0: размер запоминаем только у открытой панели
-function onSize(value: number) {
-    if (layout.nodesOpen) layout.nodesSize = value;
-}
 
 // Проект живёт только в памяти вкладки: при закрытии с несохранёнными правками браузер спросит (текст он покажет свой).
 function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -44,25 +33,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <TaoSplit
-        class="app"
-        :model-value="layout.nodesOpen ? layout.nodesSize : 0"
-        :min="layout.nodesOpen ? 20 : 0"
-        :min-end="20"
-        :resizable="layout.nodesOpen"
-        @update:model-value="onSize"
-    >
-        <template #start>
-            <div class="editor">
-                <EditorCanvas />
-                <Toolbar />
-                <NodePalette />
-            </div>
-        </template>
-        <template #end>
-            <PreviewPanel />
-        </template>
-    </TaoSplit>
+    <Shell />
     <TaoConfirmHost />
 </template>
 
@@ -82,17 +53,5 @@ body {
 
 * {
     box-sizing: border-box;
-}
-</style>
-
-<style scoped>
-.app {
-    height: 100%;
-}
-
-.editor {
-    position: relative;
-    min-width: 0;
-    height: 100%;
 }
 </style>

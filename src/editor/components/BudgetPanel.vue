@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from '@/i18n';
 import type { BudgetReport } from '@/particles/budget';
-import { HEAT_STOPS } from '@/preview/overdraw';
+import { HEAT_STOPS } from '@/preview/heat';
 
 const props = defineProps<{
     report: BudgetReport | null;
@@ -42,16 +42,9 @@ const legend = `linear-gradient(90deg, ${HEAT_STOPS.map((s, i) => `${s.color} ${
 </template>
 
 <style scoped>
+/* Бюджет лежит в нижней панели оболочки: сам он ничего не позиционирует и не красит */
 .budget {
-    position: absolute;
-    top: 44px;
-    left: 12px;
-    z-index: 5;
-    min-width: 230px;
-    padding: 8px 10px;
-    border: 1px solid var(--tao-color-border, #222733);
-    border-radius: 8px;
-    background: var(--tao-color-surface, rgba(15, 18, 26, 0.9));
+    max-width: 360px;
     color: var(--tao-color-text, #d6d9e0);
     font-size: 12px;
 }

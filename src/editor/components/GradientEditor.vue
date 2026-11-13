@@ -44,11 +44,11 @@ function remove() {
             @commit="emit('commit')"
         />
         <div class="fields">
-            <TaoColorInput v-model="hex" size="small" :title="t('particles.stopColor')" @change="emit('commit')" />
+            <TaoColorInput v-model="hex" :title="t('particles.stopColor')" @change="emit('commit')" />
             <label>{{ t('particles.stopAlpha') }}
-                <TaoSlider variant="thin" size="small" :min="0" :max="1" :step="0.01" :model-value="stop.alpha" @update:model-value="onAlpha" @change="emit('commit')" />
+                <TaoSlider variant="thin" :min="0" :max="1" :step="0.01" :model-value="stop.alpha" @update:model-value="onAlpha" @change="emit('commit')" />
             </label>
-            <TaoButton size="small" variant="ghost" :disabled="modelValue.length <= 1" :aria-label="t('particles.removeStop')" @click="remove">✕</TaoButton>
+            <TaoButton variant="ghost" :disabled="modelValue.length <= 1" :aria-label="t('particles.removeStop')" @click="remove">✕</TaoButton>
         </div>
     </div>
 </template>

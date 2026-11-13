@@ -21,7 +21,7 @@ const marks = computed(() => (editor.system ? timelineMarks(editor.system, lengt
             :playing="editor.playback.playing"
             :length="length"
             :marks="marks"
-            size="small"
+           
             @update:model-value="editor.seek"
             @update:playing="editor.setPlaying"
         >

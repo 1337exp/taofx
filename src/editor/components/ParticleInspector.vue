@@ -78,57 +78,57 @@ function setBoxSize(i: number, value: number | null) {
     <aside v-if="editor.system" class="inspector" @pointerdown.stop @wheel.stop>
         <header>
             <strong>{{ t('particles.title') }}</strong>
-            <TaoButton size="small" variant="ghost" @click="editor.disableParticles()">{{ t('particles.disable') }}</TaoButton>
+            <TaoButton variant="ghost" @click="editor.disableParticles()">{{ t('particles.disable') }}</TaoButton>
         </header>
 
         <section>
             <h4>{{ t('particles.system') }}</h4>
-            <div class="row"><span>{{ t('particles.duration') }}</span><TaoInputNumber size="small" :min="0.1" :step="0.1" :model-value="editor.system.duration" @update:model-value="(v) => edit('duration', (s) => (s.duration = Math.max(0.1, num(v))))" /></div>
-            <div class="row"><TaoSwitch size="small" :label="t('particles.loop')" :model-value="editor.system.loop" @update:model-value="(v) => edit('loop', (s) => (s.loop = v))" /></div>
-            <div class="row"><span>{{ t('particles.seed') }}</span><TaoInputNumber size="small" :step="1" :model-value="editor.system.seed" @update:model-value="(v) => edit('seed', (s) => (s.seed = Math.trunc(num(v))))" /></div>
-            <div class="row"><span>{{ t('particles.maxParticles') }}</span><TaoInputNumber size="small" :min="1" :max="100000" :step="50" :model-value="editor.system.maxParticles" @update:model-value="(v) => edit('max', (s) => (s.maxParticles = Math.min(100000, Math.max(1, Math.trunc(num(v))))))" /></div>
-            <div class="row"><span>{{ t('particles.step') }}</span><TaoInputNumber size="small" :min="10" :max="240" :step="10" :model-value="Math.round(1 / editor.system.step)" @update:model-value="(v) => edit('step', (s) => (s.step = 1 / Math.min(240, Math.max(10, Math.round(num(v) || 60)))))" /></div>
-            <div class="row"><span>{{ t('particles.blend') }}</span><TaoSelect size="small" :clearable="false" :model-value="editor.system.blend" :options="blends" @update:model-value="(v) => edit('blend', (s) => (s.blend = v === 'add' ? 'add' : 'normal'))" /></div>
+            <div class="row"><span>{{ t('particles.duration') }}</span><TaoInputNumber :min="0.1" :step="0.1" :model-value="editor.system.duration" @update:model-value="(v) => edit('duration', (s) => (s.duration = Math.max(0.1, num(v))))" /></div>
+            <div class="row"><TaoSwitch :label="t('particles.loop')" :model-value="editor.system.loop" @update:model-value="(v) => edit('loop', (s) => (s.loop = v))" /></div>
+            <div class="row"><span>{{ t('particles.seed') }}</span><TaoInputNumber :step="1" :model-value="editor.system.seed" @update:model-value="(v) => edit('seed', (s) => (s.seed = Math.trunc(num(v))))" /></div>
+            <div class="row"><span>{{ t('particles.maxParticles') }}</span><TaoInputNumber :min="1" :max="100000" :step="50" :model-value="editor.system.maxParticles" @update:model-value="(v) => edit('max', (s) => (s.maxParticles = Math.min(100000, Math.max(1, Math.trunc(num(v))))))" /></div>
+            <div class="row"><span>{{ t('particles.step') }}</span><TaoInputNumber :min="10" :max="240" :step="10" :model-value="Math.round(1 / editor.system.step)" @update:model-value="(v) => edit('step', (s) => (s.step = 1 / Math.min(240, Math.max(10, Math.round(num(v) || 60)))))" /></div>
+            <div class="row"><span>{{ t('particles.blend') }}</span><TaoSelect :clearable="false" :model-value="editor.system.blend" :options="blends" @update:model-value="(v) => edit('blend', (s) => (s.blend = v === 'add' ? 'add' : 'normal'))" /></div>
         </section>
 
         <section>
             <h4>{{ t('particles.emitter') }}</h4>
-            <div class="row"><span>{{ t('particles.rate') }}</span><TaoInputNumber size="small" :min="0" :max="10000" :step="5" :model-value="editor.system.emitter.rate" @update:model-value="(v) => edit('rate', (s) => (s.emitter.rate = Math.min(10000, Math.max(0, num(v)))))" /></div>
-            <div class="row"><span>{{ t('particles.shape') }}</span><TaoSelect size="small" :clearable="false" :model-value="editor.system.emitter.shape.type" :options="shapes" @update:model-value="setShapeType" /></div>
+            <div class="row"><span>{{ t('particles.rate') }}</span><TaoInputNumber :min="0" :max="10000" :step="5" :model-value="editor.system.emitter.rate" @update:model-value="(v) => edit('rate', (s) => (s.emitter.rate = Math.min(10000, Math.max(0, num(v)))))" /></div>
+            <div class="row"><span>{{ t('particles.shape') }}</span><TaoSelect :clearable="false" :model-value="editor.system.emitter.shape.type" :options="shapes" @update:model-value="setShapeType" /></div>
 
             <template v-if="editor.system.emitter.shape.type === 'circle'">
-                <div class="row"><span>{{ t('particles.radius') }}</span><TaoInputNumber size="small" :min="0" :step="0.1" :model-value="editor.system.emitter.shape.radius" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'circle' && (s.emitter.shape.radius = Math.max(0, num(v))))" /></div>
-                <div class="row"><TaoSwitch size="small" :label="t('particles.edge')" :model-value="editor.system.emitter.shape.edge === true" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'circle' && (s.emitter.shape.edge = v))" /></div>
+                <div class="row"><span>{{ t('particles.radius') }}</span><TaoInputNumber :min="0" :step="0.1" :model-value="editor.system.emitter.shape.radius" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'circle' && (s.emitter.shape.radius = Math.max(0, num(v))))" /></div>
+                <div class="row"><TaoSwitch :label="t('particles.edge')" :model-value="editor.system.emitter.shape.edge === true" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'circle' && (s.emitter.shape.edge = v))" /></div>
             </template>
             <template v-if="editor.system.emitter.shape.type === 'cone'">
-                <div class="row"><span>{{ t('particles.angle') }}</span><TaoInputNumber size="small" :min="0" :max="180" :step="1" :model-value="editor.system.emitter.shape.angle" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'cone' && (s.emitter.shape.angle = Math.min(180, Math.max(0, num(v)))))" /></div>
-                <div class="row"><span>{{ t('particles.radius') }}</span><TaoInputNumber size="small" :min="0" :step="0.05" :model-value="editor.system.emitter.shape.radius" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'cone' && (s.emitter.shape.radius = Math.max(0, num(v))))" /></div>
+                <div class="row"><span>{{ t('particles.angle') }}</span><TaoInputNumber :min="0" :max="180" :step="1" :model-value="editor.system.emitter.shape.angle" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'cone' && (s.emitter.shape.angle = Math.min(180, Math.max(0, num(v)))))" /></div>
+                <div class="row"><span>{{ t('particles.radius') }}</span><TaoInputNumber :min="0" :step="0.05" :model-value="editor.system.emitter.shape.radius" @update:model-value="(v) => edit('shape', (s) => s.emitter.shape.type === 'cone' && (s.emitter.shape.radius = Math.max(0, num(v))))" /></div>
             </template>
             <div v-if="editor.system.emitter.shape.type === 'box'" class="row">
                 <span>{{ t('particles.boxSize') }}</span>
-                <span class="trio"><TaoInputNumber v-for="(v, i) in editor.system.emitter.shape.size" :key="i" size="small" :min="0" :step="0.1" :controls="false" :model-value="v" @update:model-value="(x) => setBoxSize(i, x)" /></span>
+                <span class="trio"><TaoInputNumber v-for="(v, i) in editor.system.emitter.shape.size" :key="i" :min="0" :step="0.1" :controls="false" :model-value="v" @update:model-value="(x) => setBoxSize(i, x)" /></span>
             </div>
 
             <div class="row head">
                 <span>{{ t('particles.bursts') }}</span>
-                <TaoButton size="small" variant="ghost" @click="edit('bursts', (s) => s.emitter.bursts.push({ time: 0, count: 20 }))">＋ {{ t('particles.addBurst') }}</TaoButton>
+                <TaoButton variant="ghost" @click="edit('bursts', (s) => s.emitter.bursts.push({ time: 0, count: 20 }))">＋ {{ t('particles.addBurst') }}</TaoButton>
             </div>
             <div v-for="(b, i) in editor.system.emitter.bursts" :key="i" class="row burst">
-                <TaoInputNumber size="small" :min="0" :step="0.1" :controls="false" :placeholder="t('particles.burstTime')" :model-value="b.time" @update:model-value="(v) => edit(`burst${i}`, (s) => (s.emitter.bursts[i]!.time = Math.max(0, num(v))))" />
-                <TaoInputNumber size="small" :min="0" :step="1" :controls="false" :placeholder="t('particles.burstCount')" :model-value="b.count" @update:model-value="(v) => edit(`burst${i}`, (s) => (s.emitter.bursts[i]!.count = Math.max(0, Math.trunc(num(v)))))" />
-                <TaoButton size="small" variant="ghost" :aria-label="t('particles.remove')" @click="edit('bursts', (s) => s.emitter.bursts.splice(i, 1))">✕</TaoButton>
+                <TaoInputNumber :min="0" :step="0.1" :controls="false" :placeholder="t('particles.burstTime')" :model-value="b.time" @update:model-value="(v) => edit(`burst${i}`, (s) => (s.emitter.bursts[i]!.time = Math.max(0, num(v))))" />
+                <TaoInputNumber :min="0" :step="1" :controls="false" :placeholder="t('particles.burstCount')" :model-value="b.count" @update:model-value="(v) => edit(`burst${i}`, (s) => (s.emitter.bursts[i]!.count = Math.max(0, Math.trunc(num(v)))))" />
+                <TaoButton variant="ghost" :aria-label="t('particles.remove')" @click="edit('bursts', (s) => s.emitter.bursts.splice(i, 1))">✕</TaoButton>
             </div>
         </section>
 
         <section>
             <h4>{{ t('particles.render') }}</h4>
-            <div class="row"><span>{{ t('particles.mode') }}</span><TaoSelect size="small" :clearable="false" :model-value="editor.system.render.mode" :options="modes" @update:model-value="(v) => edit('mode', (s) => (s.render.mode = v as RenderMode))" /></div>
-            <div v-if="editor.system.render.mode === 'stretch'" class="row"><span>{{ t('particles.stretch') }}</span><TaoInputNumber size="small" :min="0" :step="0.02" :model-value="editor.system.render.stretch" @update:model-value="(v) => edit('stretch', (s) => (s.render.stretch = Math.max(0, num(v))))" /></div>
+            <div class="row"><span>{{ t('particles.mode') }}</span><TaoSelect :clearable="false" :model-value="editor.system.render.mode" :options="modes" @update:model-value="(v) => edit('mode', (s) => (s.render.mode = v as RenderMode))" /></div>
+            <div v-if="editor.system.render.mode === 'stretch'" class="row"><span>{{ t('particles.stretch') }}</span><TaoInputNumber :min="0" :step="0.02" :model-value="editor.system.render.stretch" @update:model-value="(v) => edit('stretch', (s) => (s.render.stretch = Math.max(0, num(v))))" /></div>
             <template v-if="editor.system.render.mode === 'ribbon'">
-                <div class="row"><span>{{ t('particles.trailLength') }}</span><TaoInputNumber size="small" :min="0.05" :step="0.05" :model-value="editor.system.render.trail.length" @update:model-value="(v) => edit('trailLength', (s) => (s.render.trail.length = Math.max(0.05, num(v))))" /></div>
-                <div class="row"><span>{{ t('particles.trailSegments') }}</span><TaoInputNumber size="small" :min="2" :max="64" :step="1" :model-value="editor.system.render.trail.segments" @update:model-value="(v) => edit('trailSegments', (s) => (s.render.trail.segments = Math.min(64, Math.max(2, Math.trunc(num(v))))))" /></div>
+                <div class="row"><span>{{ t('particles.trailLength') }}</span><TaoInputNumber :min="0.05" :step="0.05" :model-value="editor.system.render.trail.length" @update:model-value="(v) => edit('trailLength', (s) => (s.render.trail.length = Math.max(0.05, num(v))))" /></div>
+                <div class="row"><span>{{ t('particles.trailSegments') }}</span><TaoInputNumber :min="2" :max="64" :step="1" :model-value="editor.system.render.trail.segments" @update:model-value="(v) => edit('trailSegments', (s) => (s.render.trail.segments = Math.min(64, Math.max(2, Math.trunc(num(v))))))" /></div>
             </template>
-            <div v-if="editor.system.blend === 'normal'" class="row"><TaoSwitch size="small" :label="t('particles.sort')" :model-value="editor.system.render.sort" @update:model-value="(v) => edit('sort', (s) => (s.render.sort = v))" /></div>
+            <div v-if="editor.system.blend === 'normal'" class="row"><TaoSwitch :label="t('particles.sort')" :model-value="editor.system.render.sort" @update:model-value="(v) => edit('sort', (s) => (s.render.sort = v))" /></div>
         </section>
 
         <section>
@@ -136,15 +136,15 @@ function setBoxSize(i: number, value: number | null) {
             <div v-for="key in RANGE_KEYS" :key="key" class="row">
                 <span>{{ t(`particles.${key}`) }}</span>
                 <span class="trio">
-                    <TaoInputNumber size="small" :step="0.1" :controls="false" :placeholder="t('particles.min')" :model-value="rangeOf(editor.system.particle[key])[0]" @update:model-value="(v) => setRange(key, 0, v)" />
-                    <TaoInputNumber size="small" :step="0.1" :controls="false" :placeholder="t('particles.max')" :model-value="rangeOf(editor.system.particle[key])[1]" @update:model-value="(v) => setRange(key, 1, v)" />
+                    <TaoInputNumber :step="0.1" :controls="false" :placeholder="t('particles.min')" :model-value="rangeOf(editor.system.particle[key])[0]" @update:model-value="(v) => setRange(key, 0, v)" />
+                    <TaoInputNumber :step="0.1" :controls="false" :placeholder="t('particles.max')" :model-value="rangeOf(editor.system.particle[key])[1]" @update:model-value="(v) => setRange(key, 1, v)" />
                 </span>
             </div>
             <div class="row">
                 <span>{{ t('particles.gravity') }}</span>
-                <span class="trio"><TaoInputNumber v-for="(v, i) in editor.system.particle.gravity" :key="i" size="small" :step="0.1" :controls="false" :model-value="v" @update:model-value="(x) => setGravity(i, x)" /></span>
+                <span class="trio"><TaoInputNumber v-for="(v, i) in editor.system.particle.gravity" :key="i" :step="0.1" :controls="false" :model-value="v" @update:model-value="(x) => setGravity(i, x)" /></span>
             </div>
-            <div class="row"><span>{{ t('particles.drag') }}</span><TaoInputNumber size="small" :min="0" :step="0.05" :model-value="editor.system.particle.drag" @update:model-value="(v) => edit('drag', (s) => (s.particle.drag = Math.max(0, num(v))))" /></div>
+            <div class="row"><span>{{ t('particles.drag') }}</span><TaoInputNumber :min="0" :step="0.05" :model-value="editor.system.particle.drag" @update:model-value="(v) => edit('drag', (s) => (s.particle.drag = Math.max(0, num(v))))" /></div>
         </section>
 
         <ForceList />
@@ -167,18 +167,8 @@ function setBoxSize(i: number, value: number | null) {
 </template>
 
 <style scoped>
+/* Инспектор лежит в своей области оболочки (InspectorPanel): сам он ничего не позиционирует и не красит */
 .inspector {
-    position: absolute;
-    top: 44px;
-    right: 8px;
-    bottom: 8px;
-    z-index: 5;
-    width: 310px;
-    overflow-y: auto;
-    padding: 8px 10px;
-    border: 1px solid var(--tao-color-border, #222733);
-    border-radius: 10px;
-    background: var(--tao-color-surface, rgba(15, 18, 26, 0.94));
     color: var(--tao-color-text, #d6d9e0);
     font-size: 12px;
 }

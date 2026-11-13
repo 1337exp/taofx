@@ -143,16 +143,22 @@ export const useEditor = defineStore('editor', () => {
     /** Как открытый документ лежит в проекте (какой это файл, какая картинка какому ассету). */
     let link: ProjectLink = emptyLink();
     const projectName = ref('');
+    /** Id открытого документа в проекте; null: документ ещё не записан в проект (новый или импортированный). */
+    const openDocId = ref<string | null>(null);
+    /** Растёт, когда файлы проекта изменились мимо реактивности (сохранение, открытие): по нему перестраивается дерево. */
+    const projectRevision = ref(0);
 
     function useProject(next: Project, nextLink: ProjectLink) {
         project.value = markRaw(next);
         link = nextLink;
         projectName.value = next.manifest.name;
+        openDocId.value = nextLink.docId;
+        projectRevision.value++;
     }
 
     /** Открытый документ целиком: вид из файла сохранён при другом размере окна, а у файла без вида камера осталась бы от прежнего графа. */
     function showOpened(items: number, dropped: number, problems: number) {
-        fitView();
+        fitSoon();
         if (problems > 0) showNotice('error', 'file.loadedWithProblems', [items, problems]);
         else if (dropped > 0) showNotice('error', 'file.loadedWithDropped', [items, dropped]);
         else showNotice('info', 'file.loaded', [items]);
@@ -164,6 +170,7 @@ export const useEditor = defineStore('editor', () => {
     function newProject() {
         useProject(createProject(), emptyLink());
         session.load(emptyDoc(), { x: 0, y: 0, z: 1 }, true);
+        graphFitPending.value = true;
         showNotice('info', 'file.newGraph');
     }
 
@@ -208,6 +215,8 @@ export const useEditor = defineStore('editor', () => {
             downloadBlob(fileBaseOf(p.manifest.name) + PROJECT_EXTENSION, await packProject(p), PROJECT_MIME);
             p.markSaved();
             session.markSaved();
+            openDocId.value = link.docId;
+            projectRevision.value++;
             showNotice('info', 'file.saved');
             return true;
         } catch {
@@ -221,7 +230,7 @@ export const useEditor = defineStore('editor', () => {
         commit,
         load: (doc, view) => {
             session.load(doc, view);
-            fitView();
+            fitSoon();
         },
     });
 
@@ -262,6 +271,22 @@ export const useEditor = defineStore('editor', () => {
         camera.value = fitCamera(Object.values(graph.value.nodes), viewport.value);
     }
 
+    /**
+     * Граф показан не всегда (он вкладка рядом с превью), и размер его холста известен только пока он на экране. Поэтому после
+     * открытия, нового документа и примера камера подбирается сразу (по последнему известному размеру), а когда граф появится
+     * на экране, холст зовёт `takeGraphFit` и подбирает её ещё раз по настоящему размеру.
+     */
+    const graphFitPending = ref(true);
+    function fitSoon() {
+        fitView();
+        graphFitPending.value = true;
+    }
+    function takeGraphFit(): boolean {
+        const pending = graphFitPending.value;
+        graphFitPending.value = false;
+        return pending;
+    }
+
     return {
         registry,
         graph,
@@ -281,6 +306,8 @@ export const useEditor = defineStore('editor', () => {
         dirty,
         project,
         projectName,
+        openDocId,
+        projectRevision,
         /** Файл для игры: прежний `taofx.json` (граф или система частиц с картинками внутри). */
         exportText,
         newProject,
@@ -309,6 +336,7 @@ export const useEditor = defineStore('editor', () => {
         pinWorld,
         pinType,
         fitView,
+        takeGraphFit,
 
         // протягивание связи
         pending: connection.pending,

@@ -16,7 +16,7 @@ function set(i: number, value: number | null) {
 <template>
     <div class="row">
         <span>{{ label }}</span>
-        <span class="trio"><TaoInputNumber v-for="(v, i) in modelValue" :key="i" size="small" :step="step" :controls="false" :model-value="v" @update:model-value="(x) => set(i, x)" /></span>
+        <span class="trio"><TaoInputNumber v-for="(v, i) in modelValue" :key="i" :step="step" :controls="false" :model-value="v" @update:model-value="(x) => set(i, x)" /></span>
     </div>
 </template>
 
