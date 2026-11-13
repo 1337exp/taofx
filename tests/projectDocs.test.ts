@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
 import { assetNameOf, emptyLink, newDocument, renamableName, renamedPath, saveProjectDoc } from '@/editor/projectFile';
 import { useEditor } from '@/editor/store';
 import { packProject } from '@/project/archive';
@@ -430,5 +431,36 @@ describe('добавление файлов', () => {
         await editor.importFiles([file('hello', 'notes.txt')]);
         expect(editor.notice).toMatchObject({ kind: 'error', key: 'project.importSkipped' });
         expect(editor.project.resources).toEqual([]);
+    });
+});
+
+describe('файл документа следует за правками, не дожидаясь ухода с вкладки', () => {
+    it('материал стал эффектом: файл переезжает в effects/ сразу, с тем же id', async () => {
+        const editor = useEditor();
+        const id = editor.createDocument('material')!;
+        expect(editor.project.find(id)!.path).toBe('materials/material.mat.json');
+        editor.enableParticles();
+        await nextTick();
+        expect(editor.project.find(id)).toMatchObject({ kind: 'effect', path: 'effects/material.fx.json' });
+        editor.disableParticles();
+        await nextTick();
+        expect(editor.project.find(id)).toMatchObject({ kind: 'material', path: 'materials/material.mat.json' });
+    });
+
+    it('правка записывается в файл через короткую паузу, а не на каждое изменение', async () => {
+        vi.useFakeTimers();
+        try {
+            const editor = useEditor();
+            const id = editor.createDocument('effect')!;
+            await nextTick(); // смена вида при создании дописана
+            const seed = () => (editor.project.readDoc(id)!.body.system as { seed: number }).seed;
+            editor.updateSystem('seed', (s) => (s.seed = 777));
+            await nextTick();
+            expect(seed()).not.toBe(777); // ещё не записано
+            await vi.advanceTimersByTimeAsync(400);
+            expect(seed()).toBe(777);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

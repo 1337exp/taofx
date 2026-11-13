@@ -318,6 +318,16 @@ export const useEditor = defineStore('editor', () => {
         notify: showNotice,
     });
 
+    // Файл документа в проекте следует за правками, а не ждёт ухода с вкладки: иначе дерево и вкладка отстают (материал стал
+    // эффектом, из загруженной картинки появился файл). Смена вида записывается сразу, остальные правки чуть погодя.
+    const AUTO_SYNC_MS = 300;
+    let autoSync: ReturnType<typeof setTimeout> | undefined;
+    watch([graph, system], () => {
+        clearTimeout(autoSync);
+        autoSync = setTimeout(() => docs.sync(), AUTO_SYNC_MS);
+    }, { deep: true });
+    watch(() => system.value === null, () => docs.sync());
+
     const particles = useParticleDoc({
         system,
         commit,

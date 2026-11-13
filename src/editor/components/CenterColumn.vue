@@ -57,20 +57,23 @@ const view = computed({
                 <TaoSegmentedOption value="graph" :label="t('shell.graph')" />
             </TaoSegmented>
         </div>
-        <FlipbookView v-if="editor.activeFlipbookId !== null" />
-        <TaoSplit v-show="editor.activeFlipbookId === null" v-model="layout.stage" direction="column" class="grow" :min="25" :min-end="10" @change="(v: number) => (layout.stage = v)">
-            <template #start>
-                <div class="stage">
-                    <!-- Превью остаётся в памяти под графом: заново поднимать WebGPU при каждом переключении дорого -->
-                    <div v-show="layout.view === 'preview'" class="view"><PreviewPanel /></div>
-                    <div v-if="layout.view === 'graph'" class="view"><GraphView /></div>
-                    <Timeline />
-                </div>
-            </template>
-            <template #end>
-                <BottomPanel />
-            </template>
-        </TaoSplit>
+        <!-- Флипбук ложится поверх сцены, а не заменяет её: спрятанный через display: none разделитель терял размер и сбрасывал свою границу -->
+        <div class="body">
+            <FlipbookView v-if="editor.activeFlipbookId !== null" class="overlay" />
+            <TaoSplit :class="{ covered: editor.activeFlipbookId !== null }" v-model="layout.stage" direction="column" class="grow" :min="25" :min-end="10" @change="(v: number) => (layout.stage = v)">
+                <template #start>
+                    <div class="stage">
+                        <!-- Превью остаётся в памяти под графом: заново поднимать WebGPU при каждом переключении дорого -->
+                        <div v-show="layout.view === 'preview'" class="view"><PreviewPanel /></div>
+                        <div v-if="layout.view === 'graph'" class="view"><GraphView /></div>
+                        <Timeline />
+                    </div>
+                </template>
+                <template #end>
+                    <BottomPanel />
+                </template>
+            </TaoSplit>
+        </div>
     </div>
 </template>
 
@@ -96,9 +99,27 @@ const view = computed({
     min-width: 0;
 }
 
+.body {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
 .grow {
     flex: 1;
     min-height: 0;
+}
+
+.covered {
+    visibility: hidden;
+}
+
+.overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
 }
 
 .stage {
